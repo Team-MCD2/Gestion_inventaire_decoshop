@@ -33,11 +33,17 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
                 </button>
+                <button id="btnSheets" class="flex items-center gap-1.5 bg-emerald-500 text-white px-3 py-2 rounded-lg font-semibold text-sm hover:bg-emerald-600 transition shadow" title="Synchroniser avec Google Sheets">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 4l7 7m4 4l5 5M4 20l7-7m4-4l5-5"/>
+                    </svg>
+                    <span class="hidden sm:inline">Sheets</span>
+                </button>
                 <button id="btnExport" class="flex items-center gap-1.5 bg-white text-blue-700 px-3 py-2 rounded-lg font-semibold text-sm hover:bg-blue-50 transition shadow">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
-                    <span class="hidden sm:inline">Exporter CSV</span>
+                    <span class="hidden sm:inline">CSV</span>
                     <span class="sm:hidden">CSV</span>
                 </button>
             </div>
@@ -353,8 +359,15 @@
                         <option value="en">English</option>
                     </select>
                 </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">URL Google Apps Script (Sheets)</label>
+                    <input id="s_sheetsUrl" type="url" placeholder="https://script.google.com/macros/s/..." class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs font-mono">
+                    <p class="text-xs text-slate-500 mt-1">
+                        Pour configurer, clique sur le bouton <strong class="text-emerald-600">Sheets</strong> en haut à droite.
+                    </p>
+                </div>
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-                    <strong>🔒 Confidentialité :</strong> La clé API est stockée uniquement dans votre navigateur (localStorage).
+                    <strong>🔒 Confidentialité :</strong> Toutes les données sont stockées uniquement dans votre navigateur (localStorage).
                 </div>
             </div>
             <div class="p-4 border-t border-slate-200 flex gap-2">
@@ -364,11 +377,156 @@
         </div>
     </div>
 
+    <!-- Google Sheets Sync Modal -->
+    <div id="sheetsModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 bg-emerald-50">
+                <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <h2 class="font-bold text-slate-800">Synchronisation Google Sheets</h2>
+                </div>
+                <button id="btnCloseSheets" class="p-1 hover:bg-emerald-100 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-5">
+
+                <!-- Section SYNC (visible quand URL configurée) -->
+                <div id="sheetsSyncSection" class="hidden space-y-3">
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-900 flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <div class="flex-1">
+                            <strong>Connecté.</strong>
+                            <div class="text-xs mt-1">Dernier sync : <span id="sheetsLastSync">jamais</span></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <button id="btnPushSheets" class="flex items-center gap-3 p-4 border-2 border-blue-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl transition text-left">
+                            <div class="bg-blue-100 p-3 rounded-lg text-blue-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-slate-800">Envoyer vers Sheets</h4>
+                                <p class="text-xs text-slate-500">App → Google Sheet (remplace le contenu)</p>
+                            </div>
+                        </button>
+                        <button id="btnPullSheets" class="flex items-center gap-3 p-4 border-2 border-purple-200 hover:border-purple-500 hover:bg-purple-50 rounded-xl transition text-left">
+                            <div class="bg-purple-100 p-3 rounded-lg text-purple-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-slate-800">Importer depuis Sheets</h4>
+                                <p class="text-xs text-slate-500">Google Sheet → App (fusion)</p>
+                            </div>
+                        </button>
+                    </div>
+
+                    <details class="text-sm">
+                        <summary class="cursor-pointer text-slate-600 hover:text-slate-800 font-medium">⚙️ Options avancées</summary>
+                        <div class="mt-3 space-y-2 pl-2">
+                            <button id="btnPullReplaceSheets" class="w-full text-left px-3 py-2 text-xs bg-red-50 border border-red-200 rounded-lg text-red-700 hover:bg-red-100">
+                                ⚠️ Remplacer totalement le local par le Sheet (supprime les items locaux absents du Sheet)
+                            </button>
+                            <button id="btnTestSheets" class="w-full text-left px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100">
+                                🔌 Tester la connexion
+                            </button>
+                            <button id="btnDisconnectSheets" class="w-full text-left px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100">
+                                🔌 Déconnecter (effacer l'URL)
+                            </button>
+                        </div>
+                    </details>
+
+                    <div class="text-xs text-slate-500 bg-slate-50 rounded-lg p-3 border border-slate-200">
+                        <strong>💡 À savoir :</strong>
+                        <ul class="list-disc list-inside mt-1 space-y-0.5">
+                            <li>Les <strong>photos ne sont pas envoyées</strong> vers Sheets (trop volumineuses). La colonne <code class="bg-slate-200 px-1 rounded">hasPhoto</code> indique leur présence côté app.</li>
+                            <li>Le mode par défaut pour l'import est <strong>fusion</strong> : les items locaux non présents dans le Sheet sont conservés.</li>
+                            <li>L'envoi remplace <strong>entièrement</strong> le contenu de l'onglet « Inventaire » du Sheet.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Section SETUP (visible si URL non configurée) -->
+                <div id="sheetsSetupSection" class="space-y-4">
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                        <strong>📋 Configuration requise</strong>
+                        <p class="text-xs mt-1">Suis ces étapes une seule fois pour connecter un Google Sheet à ton app.</p>
+                    </div>
+
+                    <ol class="space-y-3 text-sm">
+                        <li class="flex gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center font-bold">1</span>
+                            <div class="flex-1">
+                                <p class="font-semibold text-slate-800">Crée un Google Sheet</p>
+                                <p class="text-xs text-slate-600">Va sur <a href="https://sheets.new" target="_blank" class="text-emerald-600 hover:underline font-medium">sheets.new</a> pour créer un nouveau tableur vide.</p>
+                            </div>
+                        </li>
+
+                        <li class="flex gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center font-bold">2</span>
+                            <div class="flex-1">
+                                <p class="font-semibold text-slate-800">Ouvre l'éditeur de script</p>
+                                <p class="text-xs text-slate-600">Dans le Sheet → Menu <strong>Extensions → Apps Script</strong>. Efface tout le code par défaut.</p>
+                            </div>
+                        </li>
+
+                        <li class="flex gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center font-bold">3</span>
+                            <div class="flex-1">
+                                <p class="font-semibold text-slate-800">Colle le code ci-dessous</p>
+                                <div class="relative mt-2">
+                                    <pre id="appsScriptCode" class="bg-slate-900 text-slate-100 text-xs p-3 rounded-lg overflow-auto max-h-48 font-mono"></pre>
+                                    <button id="btnCopyAppsScript" class="absolute top-2 right-2 bg-slate-700 hover:bg-slate-600 text-white text-xs px-2 py-1 rounded">📋 Copier</button>
+                                </div>
+                                <p class="text-xs text-slate-600 mt-1">Puis clique sur <strong>💾 Enregistrer</strong> (Ctrl+S).</p>
+                            </div>
+                        </li>
+
+                        <li class="flex gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center font-bold">4</span>
+                            <div class="flex-1">
+                                <p class="font-semibold text-slate-800">Déploie en Web App</p>
+                                <p class="text-xs text-slate-600">
+                                    Clique <strong>Déployer → Nouveau déploiement</strong> → Type : <strong>Application Web</strong>.<br>
+                                    <strong>Exécuter en tant que</strong> : Moi — <strong>Qui a accès</strong> : <strong>Tout le monde</strong>.<br>
+                                    Clique <strong>Déployer</strong> → Autorise l'accès (normal, c'est ton propre script).
+                                </p>
+                            </div>
+                        </li>
+
+                        <li class="flex gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center font-bold">5</span>
+                            <div class="flex-1">
+                                <p class="font-semibold text-slate-800">Copie l'URL de l'application Web</p>
+                                <p class="text-xs text-slate-600 mb-2">Format : <code class="bg-slate-100 px-1 rounded text-[10px]">https://script.google.com/macros/s/XXXX/exec</code></p>
+                                <input id="sheetsUrlInput" type="url" placeholder="Colle l'URL ici..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs font-mono">
+                            </div>
+                        </li>
+                    </ol>
+
+                    <div class="flex gap-2 pt-2">
+                        <button id="btnSaveSheetsUrl" class="flex-1 bg-emerald-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-emerald-700 shadow">
+                            ✓ Activer la synchronisation
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div id="toast" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] bg-slate-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm"></div>
 
     <script src="storage.js"></script>
     <script src="gemini.js"></script>
+    <script src="sheets.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

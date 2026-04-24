@@ -10,12 +10,15 @@ const Storage = (() => {
     // ⚠️ SÉCURITÉ : Clé API pré-configurée pour usage LOCAL uniquement.
     // Ne JAMAIS déployer publiquement ce fichier avec une vraie clé
     // (elle serait visible par tous dans le code source du site).
+    // Ne JAMAIS pousser sur GitHub (public) : remplacer par '' avant commit.
     // Pour la production : laisser vide et demander à chaque utilisateur
     // de coller sa propre clé via la fenêtre Paramètres.
     const DEFAULT_SETTINGS = {
-        apiKey: 'AIzaSyCe7J6Xlzfe9G9keyOjJyXLT80TIbywXao',
-        model:  'gemini-2.0-flash',
-        lang:   'fr'
+        apiKey:    'AIzaSyDFnYo9g8_6oFEvZhDb9QX9Zd-0-jL3LhA',  // ⚠️ Clé Pro, ne pas partager
+        model:     'gemini-2.0-flash',
+        lang:      'fr',
+        sheetsUrl: '',         // URL de l'Apps Script Web App pour sync Google Sheets
+        lastSync:  null        // Date ISO du dernier sync Sheets
     };
 
     // ----- Items ------------------------------------------------------------
@@ -46,14 +49,43 @@ const Storage = (() => {
         localStorage.removeItem(KEY_ITEMS);
     }
 
+    /** Remplace complètement la liste d'articles (utilisé lors d'un pull Sheets) */
+    function replaceItems(items) {
+        saveItems(Array.isArray(items) ? items : []);
+    }
+
     function generateId() {
         return 'itm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
     }
 
+    /**
+     * Génère un numéro d'article robuste au format ART-YYMMDD-XXXXXX
+     * - YYMMDD : date du jour (tri chronologique naturel)
+     * - XXXXXX : 6 caractères alphanumériques non-ambigus
+     *            (sans 0/O, 1/I/L pour éviter les confusions)
+     * Exemple : ART-260424-A7K9B2
+     * Collision : 31^6 ≈ 887 millions par jour → quasi impossible
+     */
     function nextArticleNumber() {
-        const c = parseInt(localStorage.getItem(KEY_COUNTER) || '0', 10) + 1;
-        localStorage.setItem(KEY_COUNTER, String(c));
-        return 'ART-' + String(c).padStart(5, '0');
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+
+        const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+        const existing = new Set(getItems().map(i => i.numArticle));
+
+        // Re-tirer en cas de (très improbable) collision avec un article existant
+        for (let attempt = 0; attempt < 10; attempt++) {
+            let rand = '';
+            for (let i = 0; i < 6; i++) {
+                rand += CHARS[Math.floor(Math.random() * CHARS.length)];
+            }
+            const candidate = `ART-${yy}${mm}${dd}-${rand}`;
+            if (!existing.has(candidate)) return candidate;
+        }
+        // Fallback (ne devrait jamais arriver)
+        return `ART-${yy}${mm}${dd}-${Date.now().toString(36).toUpperCase().slice(-6)}`;
     }
 
     // ----- Settings ---------------------------------------------------------
@@ -67,6 +99,25 @@ const Storage = (() => {
     function saveSettings(s) {
         localStorage.setItem(KEY_SETTINGS, JSON.stringify(s));
     }
+
+    // ----- Migration auto : remplace les clés API obsolètes --------------
+    // Si l'utilisateur avait une ancienne clé (quota épuisé ou compromise)
+    // sauvegardée dans localStorage, on la remplace par la clé actuelle.
+    const DEPRECATED_KEYS = new Set([
+        'AIzaSyCe7J6Xlzfe9G9keyOjJyXLT80TIbywXao'
+    ]);
+    (function migrateApiKey() {
+        try {
+            const raw = localStorage.getItem(KEY_SETTINGS);
+            if (!raw) return;
+            const s = JSON.parse(raw);
+            if (s.apiKey && DEPRECATED_KEYS.has(s.apiKey)) {
+                s.apiKey = DEFAULT_SETTINGS.apiKey;
+                localStorage.setItem(KEY_SETTINGS, JSON.stringify(s));
+                console.info('[Storage] Clé API mise à jour automatiquement');
+            }
+        } catch {}
+    })();
 
     // ----- CSV Export -------------------------------------------------------
     const CSV_COLUMNS = [
@@ -147,7 +198,7 @@ const Storage = (() => {
     }
 
     return {
-        getItems, saveItems, upsertItem, deleteItem, clearItems,
+        getItems, saveItems, upsertItem, deleteItem, clearItems, replaceItems,
         generateId, nextArticleNumber,
         getSettings, saveSettings,
         exportCsv, exportCsvWithPhotos

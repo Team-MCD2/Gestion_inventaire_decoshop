@@ -548,20 +548,133 @@
     // ---------- Settings ----------------------------------------------------
     function openSettings() {
         const s = Storage.getSettings();
-        $('#s_apiKey').value = s.apiKey;
-        $('#s_model').value  = s.model;
-        $('#s_lang').value   = s.lang;
+        $('#s_apiKey').value    = s.apiKey;
+        $('#s_model').value     = s.model;
+        $('#s_lang').value      = s.lang;
+        $('#s_sheetsUrl').value = s.sheetsUrl || '';
         showModal($('#settingsModal'));
     }
 
     function saveSettings() {
+        const current = Storage.getSettings();
         Storage.saveSettings({
-            apiKey: $('#s_apiKey').value.trim(),
-            model:  $('#s_model').value,
-            lang:   $('#s_lang').value
+            ...current,
+            apiKey:    $('#s_apiKey').value.trim(),
+            model:     $('#s_model').value,
+            lang:      $('#s_lang').value,
+            sheetsUrl: $('#s_sheetsUrl').value.trim()
         });
         hideModal($('#settingsModal'));
         toast('Paramètres enregistrés ✓');
+    }
+
+    // ---------- Google Sheets sync -----------------------------------------
+    function openSheetsModal() {
+        const s = Storage.getSettings();
+        const hasUrl = !!(s.sheetsUrl || '').trim();
+
+        $('#sheetsSyncSection').classList.toggle('hidden', !hasUrl);
+        $('#sheetsSetupSection').classList.toggle('hidden', hasUrl);
+
+        if (hasUrl) {
+            $('#sheetsLastSync').textContent = s.lastSync
+                ? new Date(s.lastSync).toLocaleString('fr-FR')
+                : 'jamais';
+        } else {
+            $('#appsScriptCode').textContent = Sheets.APPS_SCRIPT_CODE;
+            $('#sheetsUrlInput').value = s.sheetsUrl || '';
+        }
+        showModal($('#sheetsModal'));
+    }
+
+    async function runSheetsAction(name, fn) {
+        toast('⏳ ' + name + ' en cours...', 15000);
+        try {
+            const result = await fn();
+            return result;
+        } catch (err) {
+            console.error('Sheets error:', err);
+            toast('❌ ' + err.message, 5000);
+            throw err;
+        }
+    }
+
+    async function doPushSheets() {
+        try {
+            const r = await runSheetsAction('Envoi vers Sheets', () => Sheets.push());
+            toast(`✓ ${r.count} article(s) envoyé(s) vers Google Sheets`, 4000);
+            $('#sheetsLastSync').textContent = new Date().toLocaleString('fr-FR');
+        } catch {}
+    }
+
+    async function doPullSheets(mode) {
+        if (mode === 'replace') {
+            if (!confirm('⚠️ Remplacer TOUTE la liste locale par le contenu du Sheet ?\n\nLes items locaux absents du Sheet seront SUPPRIMÉS (sauf leurs photos si les ID correspondent).')) return;
+        }
+        try {
+            const r = await runSheetsAction('Import depuis Sheets', () => Sheets.pull(mode));
+            renderInventory();
+            const msg = mode === 'replace'
+                ? `✓ ${r.count} article(s) — +${r.added} / ↕${r.updated} / −${r.removed}`
+                : `✓ ${r.count} article(s) — +${r.added} nouveaux, ↕${r.updated} mis à jour`;
+            toast(msg, 5000);
+            $('#sheetsLastSync').textContent = new Date().toLocaleString('fr-FR');
+        } catch {}
+    }
+
+    async function doTestSheets() {
+        try {
+            const r = await runSheetsAction('Test connexion', () => Sheets.test());
+            toast(`✓ Connexion OK — ${r.itemsInSheet} article(s) dans le Sheet`, 4000);
+        } catch {}
+    }
+
+    function doDisconnectSheets() {
+        if (!confirm('Déconnecter Google Sheets ? L\'URL sera effacée des paramètres.')) return;
+        const s = Storage.getSettings();
+        Storage.saveSettings({ ...s, sheetsUrl: '', lastSync: null });
+        hideModal($('#sheetsModal'));
+        toast('Google Sheets déconnecté');
+    }
+
+    async function doSaveSheetsUrl() {
+        const url = $('#sheetsUrlInput').value.trim();
+        if (!url) { toast('❌ URL manquante', 3000); return; }
+        if (!/^https:\/\/script\.google\.com\//.test(url)) {
+            toast('❌ L\'URL doit commencer par https://script.google.com/', 4000);
+            return;
+        }
+        const s = Storage.getSettings();
+        Storage.saveSettings({ ...s, sheetsUrl: url });
+        // Test immédiat
+        try {
+            toast('⏳ Test de la connexion...', 10000);
+            const r = await Sheets.test();
+            toast(`✓ Connexion réussie ! ${r.itemsInSheet} article(s) déjà dans le Sheet`, 4000);
+            openSheetsModal(); // Rafraîchit l'affichage pour montrer la section sync
+        } catch (err) {
+            toast('⚠️ URL enregistrée mais test échoué : ' + err.message, 6000);
+            openSheetsModal();
+        }
+    }
+
+    function doCopyAppsScript() {
+        const code = Sheets.APPS_SCRIPT_CODE;
+        navigator.clipboard.writeText(code).then(() => {
+            toast('✓ Code copié dans le presse-papiers');
+            const btn = $('#btnCopyAppsScript');
+            const old = btn.textContent;
+            btn.textContent = '✓ Copié';
+            setTimeout(() => { btn.textContent = old; }, 1500);
+        }).catch(() => {
+            // Fallback : sélectionner le texte pour copie manuelle
+            const range = document.createRange();
+            range.selectNodeContents($('#appsScriptCode'));
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            toast('Sélectionné. Appuie Ctrl+C pour copier');
+        });
     }
 
     // ---------- Event wiring ------------------------------------------------
@@ -623,6 +736,17 @@
         $('#btnCancelSettings').addEventListener('click', () => hideModal($('#settingsModal')));
         $('#btnSaveSettings').addEventListener('click', saveSettings);
 
+        // Google Sheets
+        $('#btnSheets').addEventListener('click', openSheetsModal);
+        $('#btnCloseSheets').addEventListener('click', () => hideModal($('#sheetsModal')));
+        $('#btnSaveSheetsUrl').addEventListener('click', doSaveSheetsUrl);
+        $('#btnCopyAppsScript').addEventListener('click', doCopyAppsScript);
+        $('#btnPushSheets').addEventListener('click', doPushSheets);
+        $('#btnPullSheets').addEventListener('click', () => doPullSheets('merge'));
+        $('#btnPullReplaceSheets').addEventListener('click', () => doPullSheets('replace'));
+        $('#btnTestSheets').addEventListener('click', doTestSheets);
+        $('#btnDisconnectSheets').addEventListener('click', doDisconnectSheets);
+
         // Recherche
         $('#searchInput').addEventListener('input', renderInventory);
 
@@ -633,6 +757,7 @@
                 if (!$('#barcodeModal').classList.contains('hidden')) closeBarcodeScanner();
                 if (!$('#formModal').classList.contains('hidden')) closeForm();
                 if (!$('#settingsModal').classList.contains('hidden')) hideModal($('#settingsModal'));
+                if (!$('#sheetsModal').classList.contains('hidden')) hideModal($('#sheetsModal'));
             }
         });
     }

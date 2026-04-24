@@ -85,9 +85,43 @@ filme/
 ├── styles.css      Styles personnalisés
 ├── app.js          Logique principale (caméra, scan, form, table)
 ├── gemini.js       Intégration Gemini Vision + Open Food Facts
+├── sheets.js       Synchronisation Google Sheets (Apps Script)
 ├── storage.js      localStorage + export CSV
 └── README.md       Ce fichier
 ```
+
+---
+
+## 📊 Synchronisation Google Sheets (optionnelle)
+
+L'app peut synchroniser ton inventaire avec un Google Sheet **sans backend** via **Google Apps Script**. Deux directions disponibles :
+- **Push** (App → Sheet) : envoie tes articles locaux vers le Sheet
+- **Pull** (Sheet → App) : récupère les articles du Sheet (mode fusion ou remplacement)
+
+### Configuration (5 minutes, une seule fois)
+
+1. **Ouvre l'app** → clique sur le bouton vert **Sheets** (en haut à droite).
+2. Suis les **5 étapes à l'écran** (tout est expliqué dans la fenêtre, y compris le code à copier).
+
+En résumé :
+1. Crée un Google Sheet sur [sheets.new](https://sheets.new)
+2. Menu **Extensions → Apps Script**
+3. Colle le code fourni (bouton **📋 Copier** dans l'app) → **💾 Enregistrer**
+4. **Déployer → Nouveau déploiement → Application Web**
+   - Exécuter en tant que : **Moi**
+   - Qui a accès : **Tout le monde**
+5. Copie l'URL générée (`https://script.google.com/macros/s/XXXX/exec`) → colle-la dans l'app
+
+### À savoir
+
+| Point | Détail |
+|---|---|
+| **Photos** | Les images ne sont **pas** envoyées vers Sheets (trop lourdes). La colonne `hasPhoto` indique juste leur présence côté app. |
+| **Mode push** | Remplace intégralement l'onglet « Inventaire » du Sheet. |
+| **Mode pull (fusion)** | Remote écrase local sur `id` commun, ajoute les nouveaux, **conserve** les items locaux absents du Sheet. |
+| **Mode pull (replace)** | Remote remplace tout le local. Les photos sont gardées si les `id` correspondent. |
+| **Quota** | Google Apps Script : 20 000 appels/jour (largement suffisant). |
+| **Confidentialité** | Le Sheet appartient à ton compte Google. L'URL Web App est déployée en "Anyone", mais elle est imprévisible — la connaître = pouvoir lire/écrire ton Sheet. **Ne la partage pas.** |
 
 ---
 
