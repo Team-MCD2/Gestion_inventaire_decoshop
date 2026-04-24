@@ -1,0 +1,123 @@
+/* Custom styles on top of Tailwind */
+
+/* Prevent text selection on buttons for better mobile UX */
+button {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+/* Smooth modal animations */
+.modal-enter {
+    animation: modalIn 0.2s ease-out;
+}
+
+@keyframes modalIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+/* Inventory table row hover */
+#inventoryBody tr {
+    transition: background-color 0.15s ease;
+}
+#inventoryBody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* ----- Édition inline des cellules ----- */
+.cell-edit {
+    cursor: text;
+    outline: none;
+    position: relative;
+    min-width: 40px;
+    transition: background-color 0.15s, box-shadow 0.15s;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.cell-edit:hover:not(.editing) {
+    background-color: #f1f5f9;
+    box-shadow: inset 0 0 0 1px #cbd5e1;
+}
+.cell-edit.editing {
+    background-color: #fefce8 !important;
+    box-shadow: inset 0 0 0 2px #eab308;
+    z-index: 1;
+}
+/* Placeholder visuel pour cellules vides */
+.cell-edit:empty:not(.editing)::before {
+    content: '—';
+    color: #cbd5e1;
+    pointer-events: none;
+}
+/* Symbole € pour cellules monétaires (affichage seulement) */
+.cell-money:not(:empty):not(.editing)::after {
+    content: ' €';
+    color: #94a3b8;
+    font-size: 0.85em;
+    pointer-events: none;
+}
+/* Badge pour catégorie (affichage seulement) */
+.cell-badge:not(:empty):not(.editing) {
+    display: table-cell;
+}
+.cell-badge:not(:empty):not(.editing) {
+    color: #475569;
+}
+/* Description : wrap mais limite la hauteur */
+td.cell-edit.max-w-xs {
+    max-width: 24rem;
+}
+
+/* Thumbnail images */
+.thumb {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    background: #e2e8f0;
+    cursor: pointer;
+}
+
+/* Barcode scanner container */
+#barcodeReader {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+#barcodeReader video,
+#barcodeReader img {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: auto !important;
+    object-fit: cover;
+}
+#barcodeReader__dashboard_section_csr button,
+#barcodeReader__dashboard_section_swaplink {
+    display: none !important;
+}
+#barcodeReader__scan_region {
+    background: transparent !important;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+    table { font-size: 0.75rem; }
+    th, td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+}
+
+/* Focus ring refinement */
+input:focus, textarea:focus, select:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Toast visible state */
+#toast.show {
+    display: block;
+    animation: toastIn 0.25s ease-out;
+}
+@keyframes toastIn {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+}
