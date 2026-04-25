@@ -74,10 +74,56 @@ Autorisez l'accès à la caméra lorsque le navigateur le demande. Sur mobile, l
 
 ```powershell
 npm run build
-npm run preview
 ```
 
-L'application étant en mode SSR (Node adapter), elle produit un serveur Node dans `dist/server/`. Voir la section « Déploiement » plus bas.
+Le build produit `.vercel/output/` (fonctions serverless + assets statiques) prêt pour Vercel.
+
+## Déploiement sur Vercel
+
+### 1. Créer une base Turso (SQLite distante, gratuite)
+
+Vercel utilise un système de fichiers en lecture seule, donc impossible d'écrire un `data/inventaire.db` local. La base doit être distante. Turso offre un free tier généreux (9 GB / 1 milliard de reads par mois) et est 100 % compatible SQLite.
+
+```powershell
+# Installer le CLI (Windows : via npm ou scoop)
+npm i -g @libsql/client  # facultatif, juste pour le client
+# OU télécharger turso CLI : https://docs.turso.tech/cli/installation
+
+turso auth login
+turso db create decoshop-inventaire
+turso db show decoshop-inventaire        # copier l'URL libsql://...
+turso db tokens create decoshop-inventaire   # copier le token
+```
+
+Sinon : créer la base directement depuis le dashboard web https://app.turso.tech/.
+
+### 2. Pousser le code sur GitHub
+
+```powershell
+git add .
+git commit -m "switch to Vercel + Turso"
+git push
+```
+
+### 3. Importer le repo dans Vercel
+
+1. https://vercel.com/new → sélectionne ton repo GitHub
+2. Framework Preset : **Astro** (auto-détecté)
+3. **Environment Variables** (Settings → Environment Variables) :
+   ```
+   TURSO_DATABASE_URL  = libsql://decoshop-inventaire-xxx.turso.io
+   TURSO_AUTH_TOKEN    = eyJhbGciOiJFZERTQSI...
+   GEMINI_API_KEY      = AIzaSy... (ta clé Gemini)
+   GEMINI_MODEL        = gemini-2.5-flash
+   GOOGLE_VISION_API_KEY = AIzaSy... (optionnel)
+   ```
+4. **Deploy**.
+
+Le déploiement prend 1–2 minutes. La première requête peut être lente (cold start + init schéma) ; les suivantes sont instantanées.
+
+### 4. Vérifier
+
+Une fois déployé : ouvre ton URL Vercel, ouvre **Paramètres**, le badge "Clé Gemini serveur active" doit être vert.
 
 ## Architecture
 
@@ -93,7 +139,10 @@ src/
 │       │   └── clear.js        # POST : supprime tout
 │       └── next-num.js         # GET : prochain numéro d'article
 ├── lib/
-│   └── db.js                   # better-sqlite3 : schéma + CRUD + statut/marge
+│   ├── db.js                   # @libsql/client : schéma + CRUD + statut/marge (local file ou Turso distant)
+│   ├── gemini.js               # Proxy Gemini côté serveur (clé .env protégée)
+│   ├── vision.js               # Proxy Cloud Vision côté serveur
+│   └── analyze.js              # Orchestrateur Gemini + Vision (parallel + fusion)
 ├── scripts/
 │   ├── app.js                  # Bootstrap + wiring événements
 │   ├── state.js                # Client state + fetch API REST

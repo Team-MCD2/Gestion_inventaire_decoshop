@@ -10,7 +10,7 @@ function json(data, status = 200) {
 
 export async function GET() {
   try {
-    return json({ articles: listArticles() });
+    return json({ articles: await listArticles() });
   } catch (e) {
     return json({ error: e.message }, 500);
   }
@@ -19,7 +19,7 @@ export async function GET() {
 export async function POST({ request }) {
   try {
     const data = await request.json();
-    const article = createArticle(data);
+    const article = await createArticle(data);
     return json({ article }, 201);
   } catch (e) {
     const msg = /UNIQUE.*num_article/i.test(e.message)

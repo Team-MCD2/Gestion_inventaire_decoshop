@@ -9,7 +9,7 @@ function json(data, status = 200) {
 }
 
 export async function GET({ params }) {
-  const article = getArticle(params.id);
+  const article = await getArticle(params.id);
   if (!article) return json({ error: 'Article introuvable' }, 404);
   return json({ article });
 }
@@ -17,7 +17,7 @@ export async function GET({ params }) {
 export async function PUT({ params, request }) {
   try {
     const data = await request.json();
-    const article = updateArticle(params.id, data);
+    const article = await updateArticle(params.id, data);
     if (!article) return json({ error: 'Article introuvable' }, 404);
     return json({ article });
   } catch (e) {
@@ -26,6 +26,6 @@ export async function PUT({ params, request }) {
 }
 
 export async function DELETE({ params }) {
-  const ok = deleteArticle(params.id);
+  const ok = await deleteArticle(params.id);
   return json({ ok }, ok ? 200 : 404);
 }

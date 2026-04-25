@@ -3,7 +3,7 @@ import { nextNumArticle } from '../../lib/db.js';
 
 export async function GET() {
   try {
-    return new Response(JSON.stringify({ num: nextNumArticle() }), {
+    return new Response(JSON.stringify({ num: await nextNumArticle() }), {
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });
   } catch (e) {

@@ -1,6 +1,7 @@
 # build output
 dist/
 .output/
+.vercel/
 
 # dependencies
 node_modules/
@@ -11,7 +12,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# environment variables
+# environment variables — NEVER commit these (clés API)
+.env
+.env.local
+.env.*.local
 
 # macOS / Windows
 .DS_Store

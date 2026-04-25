@@ -1,20 +1,18 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
-import node from '@astrojs/node';
+import vercel from '@astrojs/vercel';
 
 export default defineConfig({
   site: 'https://decoshop-inventaire.local',
   output: 'server',
-  adapter: node({ mode: 'standalone' }),
+  adapter: vercel({
+    // Web analytics off by default ; turn on if you set up Vercel Analytics
+    webAnalytics: { enabled: false },
+    // Cap upload size for the photo data URL coming through /api/articles
+    maxDuration: 30,
+  }),
   vite: {
     plugins: [tailwindcss()],
-    // better-sqlite3 is a native Node module; keep it external from the bundle
-    ssr: {
-      external: ['better-sqlite3'],
-    },
-    optimizeDeps: {
-      exclude: ['better-sqlite3'],
-    },
   },
 });

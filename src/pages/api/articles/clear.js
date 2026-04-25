@@ -3,7 +3,7 @@ import { clearAllArticles } from '../../../lib/db.js';
 
 export async function POST() {
   try {
-    const count = clearAllArticles();
+    const count = await clearAllArticles();
     return new Response(JSON.stringify({ count }), {
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });

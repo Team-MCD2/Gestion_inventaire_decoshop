@@ -21,11 +21,33 @@ const NUMBER_FIELDS = [
 ];
 const FIELDS = [...TEXT_FIELDS, ...NUMBER_FIELDS];
 
-let scannerMode = 'photo';
+// Selectors for each of the 2 forms (create at top of page, edit in modal)
+const FORMS = {
+  create: {
+    form: '#article-form',
+    photo: '#photo-preview',
+    photoPlaceholder: '#photo-placeholder',
+    marge: '#marge-display',
+    statut: '#statut-preview',
+    removePhotoBtn: null,
+  },
+  edit: {
+    form: '#edit-form',
+    photo: '#edit-photo-preview',
+    photoPlaceholder: '#edit-photo-placeholder',
+    marge: '#edit-marge-display',
+    statut: '#edit-statut-preview',
+    removePhotoBtn: '#btn-edit-remove-photo',
+  },
+};
 
-// ---------- Form ----------
-function getFormData() {
-  const form = $('#article-form');
+let scannerMode = 'photo';
+let editingArticleId = null; // id of the article being edited in the modal (null when modal closed)
+
+// ---------- Form helpers (work for both create + edit modes) ----------
+function getFormData(mode = 'create') {
+  const cfg = FORMS[mode];
+  const form = $(cfg.form);
   const out = {};
   FIELDS.forEach((k) => {
     const el = form.elements.namedItem(k);
@@ -37,30 +59,39 @@ function getFormData() {
     }
     out[k] = v;
   });
-  out.photo = $('#photo-preview').dataset.src || '';
+  out.photo = $(cfg.photo).dataset.src || '';
   return out;
 }
 
-function setFormData(data) {
-  const form = $('#article-form');
+function setFormData(data, mode = 'create') {
+  const cfg = FORMS[mode];
+  const form = $(cfg.form);
   FIELDS.forEach((k) => {
     const el = form.elements.namedItem(k);
     if (!el) return;
-    if (k in data && data[k] !== null && data[k] !== undefined && data[k] !== '') {
+    // For edit mode we always want to overwrite (including with empty string)
+    // For create mode we keep the previous behavior (only fill non-empty)
+    if (mode === 'edit') {
+      const v = (k in data && data[k] !== null && data[k] !== undefined) ? data[k] : '';
+      el.value = v;
+    } else if (k in data && data[k] !== null && data[k] !== undefined && data[k] !== '') {
       el.value = data[k];
     }
   });
-  if (data.photo) setPhoto(data.photo);
-  updateMarge();
-  updateStatutPreview();
+  if (data.photo) setPhoto(data.photo, mode);
+  else if (mode === 'edit') clearPhoto(mode);
+  updateMarge(mode);
+  updateStatutPreview(mode);
 }
 
-function updateMarge() {
-  const form = $('#article-form');
+function updateMarge(mode = 'create') {
+  const cfg = FORMS[mode];
+  const form = $(cfg.form);
+  if (!form) return;
   const achat = Number(form.elements.namedItem('prix_achat')?.value || 0);
   const vente = Number(form.elements.namedItem('prix_vente')?.value || 0);
   const marge = (vente - achat) || 0;
-  const el = $('#marge-display');
+  const el = $(cfg.marge);
   if (!el) return;
   el.textContent = marge.toFixed(2).replace('.', ',') + ' €';
   el.classList.remove('text-emerald-600', 'text-red-600', 'text-slate-500');
@@ -69,53 +100,85 @@ function updateMarge() {
   else el.classList.add('text-slate-500');
 }
 
-function updateStatutPreview() {
-  const form = $('#article-form');
+function updateStatutPreview(mode = 'create') {
+  const cfg = FORMS[mode];
+  const form = $(cfg.form);
+  if (!form) return;
   const qActRaw = form.elements.namedItem('quantite_actuelle')?.value;
+  const target = $(cfg.statut);
+  if (!target) return;
   if (qActRaw === '' || qActRaw === null || qActRaw === undefined) {
-    $('#statut-preview').innerHTML = '';
+    target.innerHTML = '';
     return;
   }
   const q = Number(qActRaw);
   const seuil = 5;
   const s = q <= 0 ? 'rupture' : (q <= seuil ? 'stock_faible' : 'en_stock');
-  $('#statut-preview').innerHTML = renderStatusBadge(s);
+  target.innerHTML = renderStatusBadge(s);
 }
 
-function setPhoto(dataUrl) {
-  const img = $('#photo-preview');
-  const placeholder = $('#photo-placeholder');
+function setPhoto(dataUrl, mode = 'create') {
+  const cfg = FORMS[mode];
+  const img = $(cfg.photo);
+  const placeholder = $(cfg.photoPlaceholder);
   img.src = dataUrl;
   img.dataset.src = dataUrl;
   img.classList.remove('hidden');
   placeholder.classList.add('hidden');
+  if (cfg.removePhotoBtn) $(cfg.removePhotoBtn).classList.remove('hidden');
 }
 
-function clearPhoto() {
-  const img = $('#photo-preview');
+function clearPhoto(mode = 'create') {
+  const cfg = FORMS[mode];
+  const img = $(cfg.photo);
   img.src = '';
   img.dataset.src = '';
   img.classList.add('hidden');
-  $('#photo-placeholder').classList.remove('hidden');
+  $(cfg.photoPlaceholder).classList.remove('hidden');
+  if (cfg.removePhotoBtn) $(cfg.removePhotoBtn).classList.add('hidden');
 }
 
 async function clearForm() {
   const form = $('#article-form');
   form.reset();
-  clearPhoto();
+  clearPhoto('create');
   form.elements.namedItem('quantite_initiale').value = 1;
   form.elements.namedItem('quantite_actuelle').value = 1;
-  form.dataset.editing = '';
-  $('#form-title').textContent = 'Nouvel article';
-  $('#btn-submit').textContent = 'Ajouter à l\'inventaire';
-  updateMarge();
-  updateStatutPreview();
+  delete form.elements.namedItem('quantite_actuelle').dataset.touched;
+  updateMarge('create');
+  updateStatutPreview('create');
   // Fetch next num async
   const num = await getNextNumArticle();
-  if (num && !form.dataset.editing) {
+  if (num) {
     const el = form.elements.namedItem('num_article');
     if (el && !el.value) el.value = num;
   }
+}
+
+// ---------- Edit modal ----------
+function openEditModal(article) {
+  if (!article) return;
+  editingArticleId = article.id;
+  // Populate fields
+  setFormData(article, 'edit');
+  // Mark qty actuelle as 'touched' so we don't auto-overwrite it from qty initiale
+  const qAct = $('#edit-form').elements.namedItem('quantite_actuelle');
+  if (qAct) qAct.dataset.touched = '1';
+  // Update title with num_article
+  $('#edit-modal-num').textContent = article.num_article || '—';
+  // Show modal
+  const modal = $('#edit-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeEditModal() {
+  const modal = $('#edit-modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  document.body.style.overflow = '';
+  editingArticleId = null;
 }
 
 // ---------- Toast ----------
@@ -205,7 +268,7 @@ async function captureAndAnalyze() {
     await stopCamera();
     loadingLabel.textContent = 'Analyse IA en cours…';
     const analysis = await analyzeImage(dataUrl);
-    setFormData({ ...analysis, photo: dataUrl });
+    setFormData({ ...analysis, photo: dataUrl }, 'create');
     toast('Article analysé avec succès', 'success');
     await closeScanner();
   } catch (e) {
@@ -226,7 +289,7 @@ async function onBarcodeDetected(code) {
   await stopBarcodeScanner();
   try {
     const analysis = await analyzeBarcode(code);
-    setFormData({ ...analysis, reference: analysis.reference || code });
+    setFormData({ ...analysis, reference: analysis.reference || code }, 'create');
     toast(`Code ${code} identifié`, 'success');
     await closeScanner();
   } catch (e) {
@@ -366,10 +429,10 @@ function wireEvents() {
   $('#btn-switch-mode').addEventListener('click', switchMode);
   $('#scanner-backdrop').addEventListener('click', closeScanner);
 
-  // Photo click to remove
+  // Photo click to remove (create form)
   $('#photo-preview').addEventListener('click', () => {
     if ($('#photo-preview').dataset.src) {
-      if (confirm('Supprimer la photo ?')) clearPhoto();
+      if (confirm('Supprimer la photo ?')) clearPhoto('create');
     }
   });
 
@@ -377,36 +440,30 @@ function wireEvents() {
   const form = $('#article-form');
 
   // Auto-recalc marge when prices change
-  form.elements.namedItem('prix_achat').addEventListener('input', updateMarge);
-  form.elements.namedItem('prix_vente').addEventListener('input', updateMarge);
+  form.elements.namedItem('prix_achat').addEventListener('input', () => updateMarge('create'));
+  form.elements.namedItem('prix_vente').addEventListener('input', () => updateMarge('create'));
 
   // Sync quantite_initiale → quantite_actuelle on create (as long as user hasn't touched actuelle)
   const qInit = form.elements.namedItem('quantite_initiale');
   const qAct = form.elements.namedItem('quantite_actuelle');
   qInit.addEventListener('input', () => {
-    if (!form.dataset.editing && !qAct.dataset.touched) qAct.value = qInit.value;
-    updateStatutPreview();
+    if (!qAct.dataset.touched) qAct.value = qInit.value;
+    updateStatutPreview('create');
   });
   qAct.addEventListener('input', () => {
     qAct.dataset.touched = '1';
-    updateStatutPreview();
+    updateStatutPreview('create');
   });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const submitBtn = $('#btn-submit');
-    const data = getFormData();
-    const editing = form.dataset.editing;
+    const data = getFormData('create');
     submitBtn.disabled = true;
     submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
     try {
-      if (editing) {
-        await updateArticle(editing, data);
-        toast('Article mis à jour', 'success');
-      } else {
-        await createArticle(data);
-        toast('Article ajouté à l\'inventaire', 'success');
-      }
+      await createArticle(data);
+      toast('Article ajouté à l\'inventaire', 'success');
       await clearForm();
     } catch (err) {
       toast(err.message || 'Erreur lors de l\'enregistrement', 'error');
@@ -417,13 +474,13 @@ function wireEvents() {
   });
 
   $('#btn-clear').addEventListener('click', async () => {
-    const d = getFormData();
-    const dirty = form.dataset.editing || d.marque || d.modele || d.description || d.photo;
+    const d = getFormData('create');
+    const dirty = d.marque || d.modele || d.description || d.photo;
     if (dirty && !confirm('Effacer le formulaire ?')) return;
     await clearForm();
   });
 
-  // Table actions
+  // Table actions: 'edit' opens the dedicated modal, 'delete' confirms + removes
   $('#inventory-tbody').addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
@@ -431,15 +488,8 @@ function wireEvents() {
     const action = btn.dataset.action;
     if (action === 'edit') {
       const article = getState().articles.find((a) => a.id === id);
-      if (!article) return;
-      await clearForm();
-      setFormData(article);
-      form.dataset.editing = id;
-      const qAct = form.elements.namedItem('quantite_actuelle');
-      qAct.dataset.touched = '1';
-      $('#form-title').textContent = `Édition — ${article.num_article}`;
-      $('#btn-submit').textContent = 'Enregistrer les modifications';
-      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!article) { toast('Article introuvable', 'error'); return; }
+      openEditModal(article);
     } else if (action === 'delete') {
       if (!confirm('Supprimer cet article ?')) return;
       try {
@@ -448,6 +498,67 @@ function wireEvents() {
       } catch (err) {
         toast(err.message, 'error');
       }
+    }
+  });
+
+  // ---- Edit modal events ----
+  const editForm = $('#edit-form');
+  $('#btn-close-edit-modal').addEventListener('click', closeEditModal);
+  $('#btn-edit-cancel').addEventListener('click', closeEditModal);
+  $('#edit-backdrop').addEventListener('click', closeEditModal);
+
+  // Auto-recalc marge in edit modal
+  editForm.elements.namedItem('prix_achat').addEventListener('input', () => updateMarge('edit'));
+  editForm.elements.namedItem('prix_vente').addEventListener('input', () => updateMarge('edit'));
+  // Auto-recalc statut in edit modal
+  editForm.elements.namedItem('quantite_actuelle').addEventListener('input', () => updateStatutPreview('edit'));
+  editForm.elements.namedItem('quantite_initiale').addEventListener('input', () => updateStatutPreview('edit'));
+
+  // Photo preview click in edit modal -> remove photo
+  $('#edit-photo-preview').addEventListener('click', () => {
+    if ($('#edit-photo-preview').dataset.src && confirm('Retirer la photo ?')) {
+      clearPhoto('edit');
+    }
+  });
+  $('#btn-edit-remove-photo').addEventListener('click', () => {
+    if (confirm('Retirer la photo ?')) clearPhoto('edit');
+  });
+
+  // Submit edit form -> updateArticle
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!editingArticleId) return;
+    const saveBtn = $('#btn-edit-save');
+    const data = getFormData('edit');
+    saveBtn.disabled = true;
+    saveBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    try {
+      await updateArticle(editingArticleId, data);
+      toast('Article mis à jour', 'success');
+      closeEditModal();
+    } catch (err) {
+      toast(err.message || 'Erreur de mise à jour', 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
+  });
+
+  // Delete from edit modal
+  $('#btn-edit-delete').addEventListener('click', async () => {
+    if (!editingArticleId) return;
+    const num = $('#edit-modal-num').textContent;
+    if (!confirm(`Supprimer définitivement l'article ${num} ?`)) return;
+    const delBtn = $('#btn-edit-delete');
+    delBtn.disabled = true;
+    try {
+      await deleteArticle(editingArticleId);
+      toast('Article supprimé', 'success');
+      closeEditModal();
+    } catch (err) {
+      toast(err.message || 'Erreur de suppression', 'error');
+    } finally {
+      delBtn.disabled = false;
     }
   });
 
@@ -511,6 +622,7 @@ function wireEvents() {
     if (e.key !== 'Escape') return;
     if (!$('#scanner-modal').classList.contains('hidden')) closeScanner();
     if (!$('#settings-modal').classList.contains('hidden')) closeSettings();
+    if (!$('#edit-modal').classList.contains('hidden')) closeEditModal();
   });
 }
 
