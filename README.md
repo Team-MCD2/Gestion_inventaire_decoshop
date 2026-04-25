@@ -1,175 +1,158 @@
-# 📦 Inventaire IA — Scanner & Gérer
+# DECO SHOP — Inventaire intelligent
 
-Application web responsive pour gérer un inventaire d'articles en utilisant :
-- 📷 **Photo + IA Google Gemini Vision** → remplissage automatique des champs
-- 🏷️ **Scanner de code-barres** → recherche automatique du produit (Open Food Facts + Gemini)
-- 💾 **Stockage local** (localStorage) dans le navigateur
-- 📊 **Export CSV** compatible Excel
+Application web **Astro SSR** (Node adapter) permettant de dresser un inventaire d'articles en les filmant ou en scannant leur code-barres. L'image est analysée par **Google Gemini** (description, prix, catégorie) optionnellement enrichie par **Google Cloud Vision** (OCR EAN, logo de marque, couleur dominante). Les articles sont stockés dans une base **SQLite3** locale.
 
----
+## Fonctionnalités
 
-## 🚀 Démarrage rapide
+- **Filmer l'article** → analyse IA hybride Gemini + Vision (marque, modèle, description, catégorie, couleur, dimension, prix estimés…)
+- **Scanner le code-barres** (EAN / UPC / QR via `@zxing/browser`) → recherche IA du produit
+- Formulaire éditable avec les champs : Num article, Catégorie, Référence, Couleur, Marque, Modèle, Dimension, Description, Prix d'achat, Prix de vente, **Marge (auto-calculée)**, Quantité initiale, Quantité actuelle, **Statut (En stock / Stock faible / Rupture, auto)**
+- Tableau d'inventaire (édition / suppression par ligne, modification manuelle de tous les champs)
+- **Export CSV** (compatible Excel, BOM UTF-8, séparateur `;`)
+- **Export PDF** (paysage A4, jsPDF + autoTable, badges colorés pour le statut, totaux stock)
+- Responsive mobile / desktop
+- Persistance **SQLite3** (`data/inventaire.db`) via `better-sqlite3`
+- Clés API stockées **côté serveur** dans `.env` (proxy `/api/analyze/*`), avec override possible par utilisateur dans Settings (localStorage)
+- Favicon **DECO SHOP**
 
-### 1. Obtenir une clé API Gemini (gratuite)
+## Prérequis
 
-1. Aller sur **https://aistudio.google.com/app/apikey**
-2. Se connecter avec un compte Google
-3. Cliquer sur **Create API Key**
-4. Copier la clé (format : `AIzaSy...`)
+- Node.js 18.17+ (ou 20+)
+- Une clé API **Google Gemini** gratuite : <https://aistudio.google.com/app/apikey>
+- *(Optionnel)* Une clé **Google Cloud Vision API** pour l'enrichissement OCR/logo/couleur (voir section dédiée)
 
-> Le modèle **Gemini 2.0 Flash** est gratuit jusqu'à 15 requêtes/min et 1 500 requêtes/jour.
-
-### 2. Lancer l'application
-
-#### Option A — Serveur local Python (recommandé)
-
-```powershell
-# Depuis le dossier du projet
-python -m http.server 8000
-```
-
-Puis ouvrir **http://localhost:8000** dans le navigateur.
-
-#### Option B — Serveur local Node.js
+## Installation
 
 ```powershell
-npx serve .
+npm install
+copy .env.example .env
+# Éditer .env et coller au minimum GEMINI_API_KEY
+npm run dev
 ```
 
-#### Option C — Extension VS Code "Live Server"
+Le serveur démarre sur <http://localhost:4321>. Si la clé est dans `.env`, l'IA est immédiatement active. Sinon ouvrez **Paramètres** (engrenage en haut à droite) et collez-la côté navigateur.
 
-Clic droit sur `index.html` → **Open with Live Server**.
+## Configuration Cloud Vision (optionnel)
 
-> ⚠️ **Ne pas ouvrir directement `index.html` en double-cliquant** : la caméra ne fonctionne qu'en contexte HTTPS ou `localhost`.
+L'app fonctionne en Gemini-only par défaut. Activer Cloud Vision améliore la précision sur :
 
-### 3. Utiliser l'application
+| Champ formulaire | Source Vision | Logique |
+|---|---|---|
+| `marque` | LOGO_DETECTION | Si logo détecté avec confiance ≥ 70 %, écrase Gemini |
+| `reference` | TEXT_DETECTION (OCR) | Si un EAN/UPC (8/12/13/14 chiffres) est lu, prioritaire |
+| `dimension` | TEXT_DETECTION (OCR) | Regex `L120 x l60 x H75 cm` ou `Ø30 cm` |
+| `prix_vente` | TEXT_DETECTION (OCR) | Regex `12,99 €` ou `EUR 12.99` (étiquette de prix) |
+| `couleur` | IMAGE_PROPERTIES | Couleur dominante traduite en français (HSL → nom) |
+| `categorie` | LABEL_DETECTION | Fallback uniquement si Gemini renvoie vide |
 
-1. Au premier lancement, la fenêtre **Paramètres** s'ouvre : coller la clé API Gemini et enregistrer.
-2. Cliquer sur **📷 Photographier l'article** → prendre une photo → l'IA remplit les champs automatiquement.
-3. Ou cliquer sur **🏷️ Scanner le code-barres** → la recherche produit se fait automatiquement.
-4. Vérifier/compléter manuellement si besoin puis **Enregistrer**.
-5. Cliquer sur **Exporter CSV** pour télécharger le fichier.
+### Étapes de création (5 min)
 
----
+1. <https://console.cloud.google.com/> → créer un nouveau projet (ex. *decoshop-vision*)
+2. **Billing** → lier un compte de facturation
+   - **Vision est gratuit jusqu'à 1000 requêtes/mois/feature**, mais Google exige une CB enregistrée
+   - Crédit d'essai 300 $ / 90 jours offert pour les nouveaux comptes
+3. **APIs & Services** → **Library** → chercher "Cloud Vision API" → **Enable**
+4. **APIs & Services** → **Credentials** → **+ Create credentials** → **API key**
+5. Cliquer sur la clé créée → **API restrictions** → restreindre à *Cloud Vision API* (recommandé)
+6. Coller la clé dans `.env` :
+   ```env
+   GOOGLE_VISION_API_KEY=AIzaSy...
+   ```
+7. Redémarrer `npm run dev`
 
-## 📱 Utilisation sur mobile
+Le badge dans **Settings → Clé Cloud Vision** doit passer au vert ("Clé Cloud Vision serveur active").
 
-L'app est 100 % responsive. Pour l'utiliser sur téléphone :
+## Permissions navigateur
 
-### Méthode 1 — Accès via le réseau local
+Pour accéder à la caméra, le site doit être servi :
+- en `localhost` (cas du `npm run dev`)
+- ou en HTTPS
 
-Sur le PC, trouver l'adresse IP locale :
+Autorisez l'accès à la caméra lorsque le navigateur le demande. Sur mobile, le site utilise automatiquement la caméra arrière.
+
+## Build production
+
 ```powershell
-ipconfig
-```
-Puis sur le téléphone (connecté au même WiFi), ouvrir `http://<IP-PC>:8000`.
-
-> ⚠️ Pour que la caméra fonctionne sur mobile via IP locale, il faut du HTTPS. Deux options :
-> - Utiliser **ngrok** : `ngrok http 8000` → donne une URL HTTPS gratuite.
-> - Déployer en ligne (voir section déploiement).
-
-### Méthode 2 — Déploiement gratuit en ligne
-
-Le site est 100 % statique, déployable sans backend :
-- **Netlify Drop** : glisser-déposer le dossier sur https://app.netlify.com/drop
-- **Vercel** : `npx vercel`
-- **GitHub Pages** : push dans un repo, activer Pages dans les paramètres
-
----
-
-## 🗂️ Structure des fichiers
-
-```
-filme/
-├── index.html      Structure HTML + modals
-├── styles.css      Styles personnalisés
-├── app.js          Logique principale (caméra, scan, form, table)
-├── gemini.js       Intégration Gemini Vision + Open Food Facts
-├── sheets.js       Synchronisation Google Sheets (Apps Script)
-├── storage.js      localStorage + export CSV
-└── README.md       Ce fichier
+npm run build
+npm run preview
 ```
 
----
+L'application étant en mode SSR (Node adapter), elle produit un serveur Node dans `dist/server/`. Voir la section « Déploiement » plus bas.
 
-## 📊 Synchronisation Google Sheets (optionnelle)
+## Architecture
 
-L'app peut synchroniser ton inventaire avec un Google Sheet **sans backend** via **Google Apps Script**. Deux directions disponibles :
-- **Push** (App → Sheet) : envoie tes articles locaux vers le Sheet
-- **Pull** (Sheet → App) : récupère les articles du Sheet (mode fusion ou remplacement)
+```
+src/
+├── layouts/Layout.astro        # HTML shell + favicon + polices
+├── pages/
+│   ├── index.astro             # Page unique (UI complète)
+│   └── api/
+│       ├── articles/
+│       │   ├── index.js        # GET liste / POST création
+│       │   ├── [id].js         # GET / PUT / DELETE par id
+│       │   └── clear.js        # POST : supprime tout
+│       └── next-num.js         # GET : prochain numéro d'article
+├── lib/
+│   └── db.js                   # better-sqlite3 : schéma + CRUD + statut/marge
+├── scripts/
+│   ├── app.js                  # Bootstrap + wiring événements
+│   ├── state.js                # Client state + fetch API REST
+│   ├── camera.js               # getUserMedia + capture frame
+│   ├── barcode.js              # ZXing BrowserMultiFormatReader
+│   ├── gemini.js               # Appels Gemini (structured JSON)
+│   ├── csv.js                  # Export CSV (BOM UTF-8, ;)
+│   └── pdf.js                  # Export PDF (jsPDF + autoTable)
+└── styles/global.css           # Tailwind v4 + animations custom
+public/
+└── favicon.svg                 # Logo DECO SHOP
+data/
+└── inventaire.db               # Base SQLite3 (créée au lancement, gitignorée)
+```
 
-### Configuration (5 minutes, une seule fois)
+## Schéma SQLite
 
-1. **Ouvre l'app** → clique sur le bouton vert **Sheets** (en haut à droite).
-2. Suis les **5 étapes à l'écran** (tout est expliqué dans la fenêtre, y compris le code à copier).
+Table `articles` :
 
-En résumé :
-1. Crée un Google Sheet sur [sheets.new](https://sheets.new)
-2. Menu **Extensions → Apps Script**
-3. Colle le code fourni (bouton **📋 Copier** dans l'app) → **💾 Enregistrer**
-4. **Déployer → Nouveau déploiement → Application Web**
-   - Exécuter en tant que : **Moi**
-   - Qui a accès : **Tout le monde**
-5. Copie l'URL générée (`https://script.google.com/macros/s/XXXX/exec`) → colle-la dans l'app
+| Colonne              | Type    | Notes                                         |
+|----------------------|---------|-----------------------------------------------|
+| `id`                 | TEXT PK | UUID v4                                       |
+| `num_article`        | TEXT    | Unique, auto-généré (`ART-0001`, `ART-0002`…) |
+| `categorie`          | TEXT    |                                               |
+| `marque`             | TEXT    |                                               |
+| `modele`             | TEXT    |                                               |
+| `description`        | TEXT    |                                               |
+| `prix_achat`         | REAL    |                                               |
+| `prix_vente`         | REAL    |                                               |
+| `reference`          | TEXT    | Code EAN / SKU                                |
+| `couleur`            | TEXT    |                                               |
+| `dimension`          | TEXT    |                                               |
+| `quantite_initiale`  | INTEGER |                                               |
+| `quantite_actuelle`  | INTEGER |                                               |
+| `seuil_stock_faible` | INTEGER | Défaut : 5                                    |
+| `photo`              | TEXT    | data URL base64                               |
+| `created_at`         | INTEGER | Timestamp ms                                  |
+| `updated_at`         | INTEGER | Timestamp ms                                  |
 
-### À savoir
+Champs calculés (non stockés, ajoutés par l'API) :
 
-| Point | Détail |
-|---|---|
-| **Photos** | Les images ne sont **pas** envoyées vers Sheets (trop lourdes). La colonne `hasPhoto` indique juste leur présence côté app. |
-| **Mode push** | Remplace intégralement l'onglet « Inventaire » du Sheet. |
-| **Mode pull (fusion)** | Remote écrase local sur `id` commun, ajoute les nouveaux, **conserve** les items locaux absents du Sheet. |
-| **Mode pull (replace)** | Remote remplace tout le local. Les photos sont gardées si les `id` correspondent. |
-| **Quota** | Google Apps Script : 20 000 appels/jour (largement suffisant). |
-| **Confidentialité** | Le Sheet appartient à ton compte Google. L'URL Web App est déployée en "Anyone", mais elle est imprévisible — la connaître = pouvoir lire/écrire ton Sheet. **Ne la partage pas.** |
+- `marge` = `prix_vente - prix_achat`
+- `statut` ∈ { `en_stock` | `stock_faible` | `rupture` } selon `quantite_actuelle` vs `seuil_stock_faible`
 
----
+## Sécurité de la clé API
 
-## 📋 Champs de l'inventaire
+La clé Gemini est stockée dans le `localStorage` du navigateur. Elle est envoyée directement depuis le navigateur à l'API Google. Pour un usage en production multi-utilisateurs, utilisez plutôt un backend proxy qui garde la clé côté serveur.
 
-| Champ | Remplissage |
-|---|---|
-| **N° Article** | Auto (ART-00001, ART-00002…) |
-| **Photo** | Caméra ou import fichier |
-| **Marque** | IA |
-| **Modèle** | IA |
-| **Description** | IA |
-| **Catégorie** | IA |
-| **Quantité** | Manuel (défaut 1) |
-| **N° Série** | IA (étiquette) ou code-barres |
-| **Emplacement** | Manuel |
-| **Prix d'achat** | IA (estimation €) |
-| **Valeur actuelle** | IA (estimation €) |
-| **Fournisseur** | IA |
+## Déploiement production
 
----
+Le projet produit un serveur Node.js standalone :
 
-## 🔒 Confidentialité
+```powershell
+npm run build
+node ./dist/server/entry.mjs
+```
 
-- La clé API est stockée **uniquement dans votre navigateur** (`localStorage`), jamais envoyée ailleurs que chez Google.
-- Les photos sont envoyées à Google Gemini pour analyse (obligatoire pour la reconnaissance).
-- Aucun serveur backend : l'app est 100 % client-side.
+Le port peut être changé via la variable d'environnement `PORT` (défaut 4321 en dev, 8080 en prod).
 
----
+## Licence
 
-## 🔧 Dépannage
-
-| Problème | Solution |
-|---|---|
-| « Impossible d'accéder à la caméra » | Vérifier que la page est en `http://localhost` ou `https://`. Autoriser la caméra dans le navigateur. |
-| « Erreur Gemini 403 » | Clé API invalide ou quota dépassé. Vérifier sur aistudio.google.com. |
-| « Erreur Gemini 400 » | Modèle non disponible dans votre région → choisir `gemini-1.5-flash`. |
-| Scanner ne lit pas le code | Nettoyer le code-barres, améliorer l'éclairage, rapprocher. |
-| Données perdues après vidage cache | Exporter régulièrement en CSV pour sauvegarde. |
-
----
-
-## 🛠️ Technologies utilisées
-
-- **HTML5** (getUserMedia pour la caméra)
-- **Tailwind CSS** (via CDN, responsive)
-- **html5-qrcode** (scan de codes-barres)
-- **Google Gemini API** (analyse d'image)
-- **Open Food Facts API** (recherche code-barres produits courants)
-
-Aucun framework ni build — un simple serveur statique suffit.
+Usage interne MICRODIDAC / DECO SHOP.
