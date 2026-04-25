@@ -1,32 +1,10 @@
-// Client state — articles via REST API (SQLite) + settings via localStorage
-const SETTINGS_KEY = 'decoshop.settings.v1';
-const DEFAULTS = {
-  geminiApiKey: '',
-  googleVisionApiKey: '',
-  model: 'gemini-2.5-flash',
-};
-
+// Client state — articles via REST API (SQLite/Turso)
 const listeners = new Set();
 let state = {
   articles: [],
-  settings: loadSettings(),
   loading: true,
   error: null,
 };
-
-function loadSettings() {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { ...DEFAULTS };
-    return { ...DEFAULTS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULTS };
-  }
-}
-
-function persistSettings() {
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch {}
-}
 
 function emit() {
   listeners.forEach((fn) => {
@@ -109,8 +87,3 @@ export async function clearAll() {
   emit();
 }
 
-export function updateSettings(patch) {
-  state.settings = { ...state.settings, ...patch };
-  persistSettings();
-  emit();
-}

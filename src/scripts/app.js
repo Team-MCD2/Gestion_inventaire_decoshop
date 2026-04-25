@@ -2,11 +2,11 @@
 import {
   subscribe, getState, reload,
   createArticle, updateArticle, deleteArticle,
-  clearAll, updateSettings, getNextNumArticle,
+  clearAll, getNextNumArticle,
 } from './state.js';
 import { startCamera, stopCamera, captureFrame } from './camera.js';
 import { startBarcodeScanner, stopBarcodeScanner } from './barcode.js';
-import { analyzeImage, analyzeBarcode, getServerStatus } from './gemini.js';
+import { analyzeImage, analyzeBarcode } from './gemini.js';
 import { downloadCSV } from './csv.js';
 import { downloadPDF } from './pdf.js';
 
@@ -381,45 +381,6 @@ function renderTable() {
   `).join('');
 }
 
-// ---------- Settings ----------
-function renderKeyBadge(el, present, labelOk, labelKo) {
-  if (!el) return;
-  if (present) {
-    el.className = 'mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200';
-    el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> ${labelOk}`;
-  } else {
-    el.className = 'mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-300';
-    el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg> ${labelKo}`;
-  }
-}
-
-async function openSettings() {
-  const s = getState().settings;
-  $('#settings-apikey').value = s.geminiApiKey || '';
-  $('#settings-vision-key').value = s.googleVisionApiKey || '';
-  $('#settings-model').value = s.model || 'gemini-2.5-flash';
-  $('#settings-modal').classList.remove('hidden');
-  $('#settings-modal').classList.add('flex');
-  const status = await getServerStatus(true);
-  renderKeyBadge(
-    $('#settings-server-status'),
-    status.geminiKey,
-    `Clé Gemini serveur active (.env) — modèle ${status.model}`,
-    'Aucune clé Gemini serveur — saisissez la vôtre ci-dessous'
-  );
-  renderKeyBadge(
-    $('#settings-vision-status'),
-    status.visionKey,
-    'Clé Cloud Vision serveur active (.env) — enrichissement actif',
-    'Aucune clé Cloud Vision (optionnel) — Gemini seul est utilisé'
-  );
-}
-
-function closeSettings() {
-  $('#settings-modal').classList.add('hidden');
-  $('#settings-modal').classList.remove('flex');
-}
-
 // ---------- Wire events ----------
 function wireEvents() {
   $('#btn-open-photo').addEventListener('click', () => openScanner('photo'));
@@ -592,36 +553,10 @@ function wireEvents() {
     }
   });
 
-  // Settings
-  $('#btn-settings').addEventListener('click', openSettings);
-  $('#btn-close-settings').addEventListener('click', closeSettings);
-  $('#settings-backdrop').addEventListener('click', closeSettings);
-  $('#settings-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    updateSettings({
-      geminiApiKey: $('#settings-apikey').value.trim(),
-      googleVisionApiKey: $('#settings-vision-key').value.trim(),
-      model: $('#settings-model').value,
-    });
-    toast('Paramètres enregistrés', 'success');
-    closeSettings();
-  });
-
-  // Toggle password visibility (both keys)
-  $('#btn-toggle-apikey').addEventListener('click', () => {
-    const input = $('#settings-apikey');
-    input.type = input.type === 'password' ? 'text' : 'password';
-  });
-  $('#btn-toggle-vision-key').addEventListener('click', () => {
-    const input = $('#settings-vision-key');
-    input.type = input.type === 'password' ? 'text' : 'password';
-  });
-
   // Escape to close modals
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!$('#scanner-modal').classList.contains('hidden')) closeScanner();
-    if (!$('#settings-modal').classList.contains('hidden')) closeSettings();
     if (!$('#edit-modal').classList.contains('hidden')) closeEditModal();
   });
 }
@@ -632,12 +567,6 @@ async function boot() {
   subscribe(renderTable);
   await clearForm();
   await reload();
-  const status = await getServerStatus();
-  if (!status.geminiKey && !getState().settings.geminiApiKey) {
-    setTimeout(() => {
-      toast('Configurez votre clé Gemini dans Paramètres pour activer l\'IA', 'info');
-    }, 400);
-  }
 }
 
 if (document.readyState === 'loading') {

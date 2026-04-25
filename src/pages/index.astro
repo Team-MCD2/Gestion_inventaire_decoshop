@@ -21,11 +21,6 @@ import Layout from '../layouts/Layout.astro';
           <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
           <span id="inventory-count">0</span> articles
         </span>
-        <button id="btn-settings" type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-          <span class="hidden sm:inline">Paramètres</span>
-        </button>
       </div>
     </div>
   </header>
@@ -306,74 +301,6 @@ import Layout from '../layouts/Layout.astro';
           </button>
         </div>
       </div>
-    </div>
-  </div>
-
-  <!-- SETTINGS MODAL -->
-  <div id="settings-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
-    <div id="settings-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
-    <div class="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
-      <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-200">
-        <h3 class="text-base font-semibold text-slate-900">Paramètres</h3>
-        <button id="btn-close-settings" type="button"
-          class="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-slate-100">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
-      <form id="settings-form" class="p-5 space-y-5">
-        <div>
-          <label for="settings-apikey" class="block text-sm font-semibold text-slate-700 mb-1">Clé API Google Gemini (personnelle, optionnelle)</label>
-          <div class="relative">
-            <input id="settings-apikey" type="password" autocomplete="off" spellcheck="false"
-              placeholder="AIzaSy… (laissez vide pour utiliser la clé serveur)"
-              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-10 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            <button id="btn-toggle-apikey" type="button"
-              class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600" aria-label="Afficher/Masquer la clé">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
-          <div id="settings-server-status" class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">Vérification…</div>
-          <p class="mt-1.5 text-xs text-slate-500">Si vide, le serveur utilise la clé de son <span class="font-mono">.env</span>. Sinon, votre clé (stockée dans ce navigateur uniquement) est prioritaire. Obtenir une clé : <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">aistudio.google.com</a></p>
-        </div>
-
-        <div class="border-t border-slate-100 pt-5">
-          <label for="settings-vision-key" class="block text-sm font-semibold text-slate-700 mb-1">
-            Clé Google Cloud Vision <span class="text-xs font-normal text-slate-500">(optionnel, en complément)</span>
-          </label>
-          <div class="relative">
-            <input id="settings-vision-key" type="password" autocomplete="off" spellcheck="false"
-              placeholder="AIzaSy… (laissez vide pour utiliser la clé serveur)"
-              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-10 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            <button id="btn-toggle-vision-key" type="button"
-              class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600" aria-label="Afficher/Masquer la clé">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
-          <div id="settings-vision-status" class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">Vérification…</div>
-          <p class="mt-1.5 text-xs text-slate-500">Active l'enrichissement automatique : <strong>OCR</strong> (référence EAN, dimensions, prix d'étiquette), <strong>logo</strong> (marque), <strong>couleur dominante</strong>. Création : <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">console.cloud.google.com</a> → activer "Cloud Vision API" → Credentials → API key.</p>
-        </div>
-
-        <div>
-          <label for="settings-model" class="block text-sm font-semibold text-slate-700 mb-1">Modèle Gemini</label>
-          <select id="settings-model"
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none">
-            <option value="gemini-2.5-flash">gemini-2.5-flash (recommandé)</option>
-            <option value="gemini-2.5-pro">gemini-2.5-pro (meilleur, plus lent)</option>
-            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-          </select>
-        </div>
-        <div class="rounded-lg bg-slate-50 ring-1 ring-slate-200 p-3 text-xs text-slate-600">
-          <div class="font-semibold text-slate-700 mb-1">Stockage</div>
-          Les articles sont enregistrés dans une base <span class="font-mono text-slate-800">SQLite3</span> locale (<span class="font-mono">data/inventaire.db</span>) côté serveur. Seule votre clé Gemini est stockée dans le navigateur.
-        </div>
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <button type="button" id="btn-cancel-settings" onclick="document.getElementById('btn-close-settings').click()"
-            class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Annuler</button>
-          <button type="submit"
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">Enregistrer</button>
-        </div>
-      </form>
     </div>
   </div>
 
