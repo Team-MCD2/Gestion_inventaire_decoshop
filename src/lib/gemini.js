@@ -1,7 +1,9 @@
 // Server-side Gemini helper — called by /api/analyze/* routes
 // Supports an API key pool (GEMINI_API_KEY + GEMINI_API_KEY_1..20) with
-// automatic rotation on quota errors (429) and invalid-key errors (403),
-// plus per-key cooldown to avoid hammering rate-limited keys.
+// STICKY FALLBACK: we keep using the same key for every request as long as
+// it works. We only switch to the next key when the current one returns a
+// quota error (429) or invalid-key error (403). Per-key cooldowns prevent
+// retrying a key we just exhausted.
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 const MAX_INDEXED_KEYS = 20;
 const COOLDOWN_QUOTA_MS = 60 * 1000;          // 1 min after a 429
@@ -146,16 +148,18 @@ async function callGeminiOnce({ parts, apiKey, model }) {
   catch { throw new Error('Réponse Gemini non-JSON : ' + text.slice(0, 200)); }
 }
 
-// Rotation logic: try keys in round-robin order, skip those in cooldown,
-// and rotate to the next one on 429 / 403-invalid. Other errors (image
-// rejected, network, malformed response) are not retried — they would
-// fail on every key anyway.
+// Sticky-fallback rotation: every request starts on the current "active" key
+// (keyCursor). We only move to the next key when the active one fails with a
+// quota or invalid-key error. Once we settle on a working key, the cursor
+// stays there for all subsequent requests. Other errors (image rejected,
+// network, malformed response) are not retried — they would fail on every
+// key anyway.
 async function callGemini({ parts, apiKeys, model }) {
   const total = apiKeys.length;
   if (total === 0) throw new Error("Aucune clé Gemini disponible.");
   const now = Date.now();
 
-  // Build try-order starting at the rotating cursor.
+  // Build try-order starting at the active cursor (sticky key first).
   const order = [];
   for (let i = 0; i < total; i++) {
     order.push(apiKeys[(keyCursor + i) % total]);
@@ -169,9 +173,9 @@ async function callGemini({ parts, apiKeys, model }) {
     attempted++;
     try {
       const result = await callGeminiOnce({ parts, apiKey: key, model });
-      // Success: advance cursor so the next request starts on the next key.
-      keyCursor = (apiKeys.indexOf(key) + 1) % total;
-      keyCooldowns.delete(key); // recovery
+      // Success: stick on this key for the next request too.
+      keyCursor = apiKeys.indexOf(key);
+      keyCooldowns.delete(key); // mark recovered
       return result;
     } catch (e) {
       lastError = e;
@@ -179,12 +183,16 @@ async function callGemini({ parts, apiKeys, model }) {
       const msg = e.geminiMessage || e.message || '';
       if (isQuotaError(status, msg)) {
         keyCooldowns.set(key, Date.now() + COOLDOWN_QUOTA_MS);
-        if (total > 1) console.warn(`[gemini] key ${maskKey(key)} rate-limited, rotating to next key`);
+        // Move sticky pointer to the next key so future requests
+        // start there directly instead of retrying the limited key.
+        keyCursor = (apiKeys.indexOf(key) + 1) % total;
+        if (total > 1) console.warn(`[gemini] key ${maskKey(key)} rate-limited, falling back to next key`);
         continue;
       }
       if (isInvalidKeyError(status, msg)) {
         keyCooldowns.set(key, Date.now() + COOLDOWN_INVALID_MS);
-        console.warn(`[gemini] key ${maskKey(key)} invalid/disabled, skipping for 1h`);
+        keyCursor = (apiKeys.indexOf(key) + 1) % total;
+        console.warn(`[gemini] key ${maskKey(key)} invalid/disabled, falling back (skipping for 1h)`);
         continue;
       }
       // Non-rotatable error — surface immediately.
@@ -201,6 +209,7 @@ async function callGemini({ parts, apiKeys, model }) {
     for (const key of sorted) {
       try {
         const result = await callGeminiOnce({ parts, apiKey: key, model });
+        keyCursor = apiKeys.indexOf(key);
         keyCooldowns.delete(key);
         return result;
       } catch (e) { lastError = e; }
