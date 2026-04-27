@@ -49,7 +49,7 @@ const RESPONSE_SCHEMA = {
   properties: {
     categorie:    { type: 'STRING' },
     marque:       { type: 'STRING' },
-    modele:       { type: 'STRING' },
+    couleur:      { type: 'STRING' },
     description:  { type: 'STRING' },
     code_barres:  { type: 'STRING' },
     taille:       { type: 'STRING' },

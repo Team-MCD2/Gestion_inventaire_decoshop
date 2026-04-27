@@ -14,7 +14,7 @@ function json(data, status = 200) {
 function emptyArticle(code) {
   return {
     code_barres: String(code || '').trim(),
-    description: '', marque: '', modele: '', categorie: '',
+    description: '', marque: '', couleur: '', categorie: '',
     taille: '', photo_url: '', prix_vente: 0,
   };
 }

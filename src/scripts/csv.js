@@ -3,7 +3,7 @@ const HEADERS = [
   { key: 'numero_article',     label: 'Numero article' },
   { key: 'categorie',          label: 'Categorie' },
   { key: 'marque',             label: 'Marque' },
-  { key: 'modele',             label: 'Modele' },
+  { key: 'couleur',            label: 'Couleur' },
   { key: 'description',        label: 'Description' },
   { key: 'prix_vente',         label: 'Prix vente' },
   { key: 'code_barres',        label: 'Code-barres' },

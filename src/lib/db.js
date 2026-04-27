@@ -72,7 +72,7 @@ function normalize(data, existing = null) {
   return {
     description: String(data.description ?? existing?.description ?? '').trim(),
     marque:      String(data.marque      ?? existing?.marque      ?? '').trim(),
-    modele:      String(data.modele      ?? existing?.modele      ?? '').trim(),
+    couleur:     String(data.couleur     ?? existing?.couleur     ?? '').trim(),
     categorie:   String(data.categorie   ?? existing?.categorie   ?? '').trim(),
     prix_vente:  Number(data.prix_vente  ?? existing?.prix_vente  ?? 0) || 0,
     quantite:           Number.isFinite(q) ? q : 0,

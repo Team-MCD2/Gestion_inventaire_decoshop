@@ -1,13 +1,20 @@
 -- Supabase / Postgres schema for DECO SHOP inventaire
 -- Exécuter ce script UNE FOIS dans le SQL Editor de Supabase
 -- (Dashboard → SQL Editor → New query → coller → RUN)
+--
+-- Le script est IDEMPOTENT : tu peux le rejouer en toute sécurité, il ne
+-- détruit aucune donnée. Utile pour appliquer les changements de schéma
+-- (ajout / suppression de colonnes) sur une base déjà créée.
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Création initiale (no-op si la table existe déjà)
+-- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.articles (
   id                   text primary key,
   numero_article       text not null unique,
   description          text not null default '',
   marque               text not null default '',
-  modele               text not null default '',
+  couleur              text not null default '',
   categorie            text not null default '',
   prix_vente           numeric(12, 2) not null default 0,
   quantite             integer not null default 0,
@@ -20,6 +27,18 @@ create table if not exists public.articles (
   updated_at           bigint not null
 );
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migrations idempotentes pour bases existantes
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Ajoute la colonne 'couleur' si elle n'existe pas
+alter table public.articles add column if not exists couleur text not null default '';
+
+-- Retire la colonne 'modele' si elle existe (l'application ne l'utilise plus)
+alter table public.articles drop column if exists modele;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Index
+-- ─────────────────────────────────────────────────────────────────────────────
 create index if not exists idx_articles_numero       on public.articles (numero_article);
 create index if not exists idx_articles_categorie    on public.articles (categorie);
 create index if not exists idx_articles_code_barres  on public.articles (code_barres);

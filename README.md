@@ -4,9 +4,9 @@ Application web **Astro SSR** (Node adapter) permettant de dresser un inventaire
 
 ## Fonctionnalités
 
-- **Filmer l'article** → analyse IA hybride Gemini + Vision (marque, modèle, description, catégorie, couleur, dimension, prix estimés…)
+- **Filmer l'article** → analyse IA hybride Gemini + Vision (marque, couleur, description, catégorie, dimension, prix estimés…)
 - **Scanner le code-barres** (EAN / UPC / QR via `@zxing/browser`) → recherche IA du produit
-- Formulaire éditable avec les champs : Num article, Catégorie, Référence, Couleur, Marque, Modèle, Dimension, Description, Prix d'achat, Prix de vente, **Marge (auto-calculée)**, Quantité initiale, Quantité actuelle, **Statut (En stock / Stock faible / Rupture, auto)**
+- Formulaire éditable : N° article, Catégorie, Code-barres, Marque, Couleur, Taille/Dimensions, Description, Prix de vente, Quantité initiale, Quantité actuelle, **Statut (En stock / Stock faible / Rupture, auto)**
 - Tableau d'inventaire (édition / suppression par ligne, modification manuelle de tous les champs)
 - **Export CSV** (compatible Excel, BOM UTF-8, séparateur `;`)
 - **Export PDF** (paysage A4, jsPDF + autoTable, badges colorés pour le statut, totaux stock)
@@ -164,7 +164,7 @@ Voir `supabase/schema.sql` pour le DDL complet. Table `articles` :
 | `numero_article`     | text unique    | Auto-généré (`DECO-YYMMDD-XXXXXX`)                  |
 | `categorie`          | text           | Mobilier, Luminaire, Textile…                      |
 | `marque`             | text           |                                                    |
-| `modele`             | text           |                                                    |
+| `couleur`            | text           | Couleur principale ("Bleu nuit", "Bois clair"…)     |
 | `description`        | text           |                                                    |
 | `prix_vente`         | numeric(12,2)  |                                                    |
 | `code_barres`        | text           | EAN / UPC / GTIN                                   |

@@ -14,7 +14,7 @@ const $  = (sel, root = document) => root.querySelector(sel);
 
 // Field names match the MCD schema (cf. mcd_mld.md §2 articles)
 const TEXT_FIELDS = [
-  'numero_article', 'categorie', 'marque', 'modele', 'description',
+  'numero_article', 'categorie', 'marque', 'couleur', 'description',
   'code_barres', 'taille',
 ];
 const NUMBER_FIELDS = [
@@ -420,7 +420,7 @@ function renderTable() {
         : '<span class="inline-flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-slate-300 text-xs">—</span>'}</td>
       <td class="px-3 py-2"><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(a.categorie || '—')}</span></td>
       <td class="px-3 py-2">${escapeHtml(a.marque || '')}</td>
-      <td class="px-3 py-2">${escapeHtml(a.modele || '')}</td>
+      <td class="px-3 py-2">${escapeHtml(a.couleur || '')}</td>
       <td class="px-3 py-2 max-w-xs"><div class="line-clamp-2 text-slate-600">${escapeHtml(a.description || '')}</div></td>
       <td class="px-3 py-2 text-right tabular-nums">${fmtPrice(a.prix_vente)}</td>
       <td class="px-3 py-2 font-mono text-xs">${escapeHtml(a.code_barres || '')}</td>
@@ -505,7 +505,7 @@ function wireEvents() {
 
   $('#btn-clear').addEventListener('click', async () => {
     const d = getFormData('create');
-    const dirty = d.marque || d.modele || d.description || d.photo_url;
+    const dirty = d.marque || d.couleur || d.description || d.photo_url;
     if (dirty && !confirm('Effacer le formulaire ?')) return;
     await clearForm();
   });

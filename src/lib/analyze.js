@@ -72,7 +72,7 @@ function emptyToNull(v) {
  * Hybrid image analysis.
  * Runs the vision LLM chain (Gemini -> Groq -> Mistral) and Cloud Vision in
  * parallel, then merges. Returns { merged, sources } where:
- *   merged is a normalized article (categorie, marque, modele, description,
+ *   merged is a normalized article (categorie, marque, couleur, description,
  *     code_barres, taille, prix_vente).
  *   sources.llmProvider tells which LLM produced the result ('gemini'|'groq'|'mistral').
  */
@@ -120,7 +120,7 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
   const merged = {
     categorie:     llmResult?.categorie     ?? '',
     marque:        llmResult?.marque        ?? '',
-    modele:        llmResult?.modele        ?? '',
+    couleur:       llmResult?.couleur       ?? '',
     description:   llmResult?.description   ?? '',
     code_barres:   llmResult?.code_barres   ?? '',
     taille:        llmResult?.taille        ?? '',
@@ -151,6 +151,11 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
 
     // prix_vente : OCR du prix sur l'étiquette = prix réel → écrase l'estimation
     if (visionExtract.detectedPrice > 0) merged.prix_vente = visionExtract.detectedPrice;
+
+    // couleur : le LLM est souvent plus nuancé ("Bois clair") → ne remplit que si vide
+    if (visionExtract.couleur && !emptyToNull(merged.couleur)) {
+      merged.couleur = visionExtract.couleur;
+    }
 
     // categorie : LLM d'abord (mappe sur notre liste fermée), Vision en fallback
     if (visionExtract.fallbackCategorie && !emptyToNull(merged.categorie)) {

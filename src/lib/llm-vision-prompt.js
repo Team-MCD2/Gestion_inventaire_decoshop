@@ -24,7 +24,7 @@ RÈGLES CRITIQUES:
 
 Si tu reconnais avec certitude, renvoie un JSON conforme:
 - categorie: parmi (${CATEGORIES.join(', ')})
-- marque, modele, description (français, concis)
+- marque, couleur, description (français, concis)
 - taille (ex: "90x190" pour literie, "L120 x H75 cm" pour mobilier, "" si inconnu)
 - prix_vente: prix de vente public estimé EUR (0 si inconnu)
 
@@ -36,7 +36,7 @@ export const IMAGE_PROMPT = `Tu es un expert en inventaire pour un magasin de d�
 Analyse la photo fournie et renvoie un JSON strict conforme au schéma:
 - categorie: parmi (${CATEGORIES.join(', ')})
 - marque: nom de la marque visible ou reconnaissable ("" si inconnue)
-- modele: nom/référence du modèle ("" si inconnu)
+- couleur: nom de la couleur principale en français (ex: "Bleu nuit", "Bordeaux", "Bois clair", "" si non identifiable)
 - description: description courte et précise en français (1 à 2 phrases : matériaux, style, usage)
 - code_barres: code-barres EAN/UPC/GTIN visible sur l'étiquette (uniquement chiffres, "" si absent)
 - taille: dimensions ou taille (ex: "L120 x l60 x H75 cm", "Ø30 cm", ou pour la literie "90x190", "140x190"), "" si inconnu
@@ -50,14 +50,14 @@ export const RESPONSE_JSON_SCHEMA = {
   properties: {
     categorie:    { type: 'string' },
     marque:       { type: 'string' },
-    modele:       { type: 'string' },
+    couleur:      { type: 'string' },
     description:  { type: 'string' },
     code_barres:  { type: 'string' },
     taille:       { type: 'string' },
     prix_vente:   { type: 'number' },
   },
   required: [
-    'categorie','marque','modele','description','code_barres','taille','prix_vente',
+    'categorie','marque','couleur','description','code_barres','taille','prix_vente',
   ],
   additionalProperties: false,
 };
@@ -65,7 +65,7 @@ export const RESPONSE_JSON_SCHEMA = {
 // Empty result with all fields, used as a safe default when an LLM omits fields.
 export function emptyArticleResult() {
   return {
-    categorie: '', marque: '', modele: '', description: '',
+    categorie: '', marque: '', couleur: '', description: '',
     code_barres: '', taille: '',
     prix_vente: 0,
   };
@@ -78,7 +78,7 @@ export function normalizeArticleResult(raw) {
   return {
     categorie:    String(r.categorie    ?? def.categorie),
     marque:       String(r.marque       ?? def.marque),
-    modele:       String(r.modele       ?? def.modele),
+    couleur:      String(r.couleur      ?? def.couleur),
     description:  String(r.description  ?? def.description),
     code_barres:  String(r.code_barres  ?? def.code_barres),
     taille:       String(r.taille       ?? def.taille),

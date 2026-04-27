@@ -3,7 +3,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const HEADERS = [
-  'N°', 'Cat.', 'Marque', 'Modèle', 'Code-barres',
+  'N°', 'Cat.', 'Marque', 'Couleur', 'Code-barres',
   'Taille', 'P. vente', 'Qté init', 'Qté', 'Statut',
 ];
 
@@ -52,7 +52,7 @@ export function downloadPDF(articles) {
     a.numero_article || '',
     a.categorie || '',
     a.marque || '',
-    a.modele || '',
+    a.couleur || '',
     a.code_barres || '',
     a.taille || '',
     fmt(Number(a.prix_vente)),
