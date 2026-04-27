@@ -3,9 +3,13 @@
 // We try the next provider only when the previous one is fully exhausted (all
 // keys cooldowned or quota errors). Other errors (image rejected, malformed
 // JSON…) propagate immediately since they would happen on every provider too.
-import { analyzeImage as geminiAnalyzeImage, hasServerKey as hasGeminiServerKey } from './gemini.js';
-import { analyzeImageGroq,    hasGroqKey }    from './groq.js';
-import { analyzeImageMistral, hasMistralKey } from './mistral.js';
+import {
+  analyzeImage as geminiAnalyzeImage,
+  analyzeBarcode as geminiAnalyzeBarcode,
+  hasServerKey as hasGeminiServerKey,
+} from './gemini.js';
+import { analyzeImageGroq,    analyzeBarcodeGroq,    hasGroqKey }    from './groq.js';
+import { analyzeImageMistral, analyzeBarcodeMistral, hasMistralKey } from './mistral.js';
 import { visionAnnotate, extractFromVision, hasVisionKey } from './vision.js';
 
 const LOGO_OVERRIDE_THRESHOLD = 0.7;
@@ -177,4 +181,46 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
       },
     },
   };
+}
+
+/**
+ * Barcode LLM fallback chain — used ONLY by /api/analyze/barcode AFTER public
+ * databases (Open Food Facts & co.) returned nothing. Tries Gemini → Groq →
+ * Mistral with a STRICT prompt that tells the LLM not to guess. The result
+ * may still be empty (good — means no provider knew the code).
+ *
+ * Returns { result, source } where source is the provider that responded
+ * (even with empty fields). Throws only if every provider fails technically
+ * (quota, network, etc.) — not when they answer "I don't know".
+ *
+ * The caller is responsible for warning the user that this result is a
+ * "suggestion" to be verified, since LLMs can still hallucinate.
+ */
+export async function tryBarcodeLLMs({ barcode }) {
+  const code = String(barcode || '').trim();
+  if (!code) throw new Error('Code-barres manquant');
+
+  const chain = [];
+  if (hasGeminiServerKey()) chain.push({ name: 'gemini',  fn: () => geminiAnalyzeBarcode({ barcode: code }) });
+  if (hasGroqKey())         chain.push({ name: 'groq',    fn: () => analyzeBarcodeGroq({ barcode: code }) });
+  if (hasMistralKey())      chain.push({ name: 'mistral', fn: () => analyzeBarcodeMistral({ barcode: code }) });
+
+  if (chain.length === 0) {
+    throw new Error('Aucun fournisseur LLM configuré pour le fallback code-barres.');
+  }
+
+  let lastError = null;
+  for (let i = 0; i < chain.length; i++) {
+    const { name, fn } = chain[i];
+    const isLast = i === chain.length - 1;
+    try {
+      const result = await fn();
+      return { result, source: name };
+    } catch (e) {
+      lastError = e;
+      if (isLast) throw e;
+      console.warn(`[barcode-llm] ${name} ${isExhaustionError(e) ? 'exhausted' : 'failed'} (${e.message || e}), falling back to ${chain[i + 1].name}`);
+    }
+  }
+  throw lastError || new Error('Tous les fournisseurs LLM ont échoué pour ce code-barres.');
 }

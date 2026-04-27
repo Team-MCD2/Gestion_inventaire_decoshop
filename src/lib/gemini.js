@@ -4,6 +4,8 @@
 // it works. We only switch to the next key when the current one returns a
 // quota error (429) or invalid-key error (403). Per-key cooldowns prevent
 // retrying a key we just exhausted.
+import { buildBarcodePrompt, normalizeArticleResult } from './llm-vision-prompt.js';
+
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 const MAX_INDEXED_KEYS = 20;
 const COOLDOWN_QUOTA_MS = 60 * 1000;          // 1 min after a 429
@@ -254,25 +256,13 @@ Réponds STRICTEMENT en JSON conforme au schéma, sans commentaire ni markdown.`
 export async function analyzeBarcode({ barcode, apiKey, model }) {
   const code = String(barcode || '').trim();
   if (!code) throw new Error('Code-barres manquant');
-  const prompt = `Tu es un expert produit avec une connaissance des codes EAN/UPC/GTIN.
-On a scanné le code-barres: "${code}".
-Identifie le produit au mieux de ta connaissance et renvoie un JSON strict:
-- categorie: (Mobilier, Luminaire, Textile, Décoration murale, Vaisselle, Électroménager, Jardin, Rangement, Jouet, Électronique, Autre)
-- marque, modele, description (français, concis)
-- code_barres: "${code}" (garde le code scanné tel quel)
-- couleur, ref_couleur (si connues)
-- taille (ex: "90x190" pour literie, "L120 x H75 cm" pour mobilier)
-- taille_canape (si canapé : "1 place", "2 places", "3 places", "Angle", "Méridienne", sinon "")
-- prix_achat: prix d'achat estimé EUR (0 si inconnu)
-- prix_vente: prix de vente public estimé EUR (0 si inconnu)
-
-Si le produit est totalement inconnu, renvoie chaînes vides et 0 pour les nombres,
-mais CONSERVE code_barres = "${code}".
-Réponds uniquement en JSON conforme au schéma.`;
-
-  return callGemini({
-    parts: [{ text: prompt }],
+  const raw = await callGemini({
+    parts: [{ text: buildBarcodePrompt(code) }],
     apiKeys: resolveKeys(apiKey),
     model: resolveModel(model),
   });
+  // Always preserve the scanned code, even if Gemini omitted/changed it
+  const normalized = normalizeArticleResult(raw);
+  normalized.code_barres = code;
+  return normalized;
 }

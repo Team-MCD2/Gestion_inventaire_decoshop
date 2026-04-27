@@ -11,6 +11,31 @@ export const CATEGORIES = [
 
 export const SOFA_SIZES = ['1 place', '2 places', '3 places', 'Angle', 'Méridienne'];
 
+// Strict prompt used as a LAST-RESORT fallback when public barcode databases
+// (Open Food Facts & co.) don't know the code. The wording explicitly tells
+// the LLM NOT to guess if it doesn't recognize the code — better to return
+// empty fields than to hallucinate a plausible product.
+export function buildBarcodePrompt(code) {
+  return `Tu es un expert produit avec une connaissance des codes EAN/UPC/GTIN.
+On a scanné le code-barres: "${code}".
+
+RÈGLES CRITIQUES:
+- Si tu ne reconnais pas ce code-barres avec une CERTITUDE forte, renvoie des CHAÎNES VIDES et 0 pour les nombres.
+- Ne devine JAMAIS un produit qui te semble "plausible" — la précision compte plus que la complétude.
+- Conserve TOUJOURS code_barres = "${code}" tel quel.
+
+Si tu reconnais avec certitude, renvoie un JSON conforme:
+- categorie: parmi (${CATEGORIES.join(', ')})
+- marque, modele, description (français, concis)
+- couleur, ref_couleur (si connues)
+- taille (ex: "90x190" pour literie, "L120 x H75 cm" pour mobilier)
+- taille_canape (si canapé : ${SOFA_SIZES.join(', ')}, sinon "")
+- prix_achat: prix d'achat estimé EUR (0 si inconnu)
+- prix_vente: prix de vente public estimé EUR (0 si inconnu)
+
+Réponds uniquement en JSON conforme au schéma, sans commentaire ni markdown.`;
+}
+
 // Human-readable French prompt — same for every provider.
 export const IMAGE_PROMPT = `Tu es un expert en inventaire pour un magasin de décoration (DECO SHOP).
 Analyse la photo fournie et renvoie un JSON strict conforme au schéma:

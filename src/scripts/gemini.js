@@ -19,13 +19,16 @@ export async function analyzeImage(base64DataUrl) {
   return data.result;
 }
 
-// Returns { result, source, notice } so the caller can decide whether the
-// barcode was resolved from a public DB (Open Food Facts etc.) or unknown.
+// Returns { result, source, confidence, notice }.
+//   confidence = 'high'  -> verified public-DB match (Open Food Facts etc.)
+//                'low'   -> LLM suggestion, user must verify
+//                'none'  -> nothing found, user fills in manually
 export async function analyzeBarcode(barcode) {
   const data = await postJson('/api/analyze/barcode', { barcode });
   return {
     result: data.result,
     source: data.source || null,
+    confidence: data.confidence || null,
     notice: data.notice || null,
   };
 }

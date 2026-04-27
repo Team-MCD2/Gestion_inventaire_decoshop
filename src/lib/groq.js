@@ -5,9 +5,12 @@
 // We support a key pool similar to Gemini (GROQ_API_KEY + GROQ_API_KEY_1..10)
 // in case the user wants to stack multiple free accounts.
 
-import { IMAGE_PROMPT, normalizeArticleResult } from './llm-vision-prompt.js';
+import { IMAGE_PROMPT, buildBarcodePrompt, normalizeArticleResult } from './llm-vision-prompt.js';
 
 const DEFAULT_MODEL = 'llama-3.2-11b-vision-preview';
+// Text-only model used for barcode lookup fallback (no image needed).
+// Llama 3.3 70B is more knowledgeable than 11B for product recognition.
+const DEFAULT_TEXT_MODEL = 'llama-3.3-70b-versatile';
 const MAX_INDEXED_KEYS = 10;
 const COOLDOWN_QUOTA_MS = 60 * 1000;
 const COOLDOWN_INVALID_MS = 60 * 60 * 1000;
@@ -46,6 +49,10 @@ export function getGroqKeyCount() {
 
 export function resolveGroqModel(overrideModel) {
   return (overrideModel || readEnv('GROQ_MODEL') || DEFAULT_MODEL).trim();
+}
+
+export function resolveGroqTextModel(overrideModel) {
+  return (overrideModel || readEnv('GROQ_TEXT_MODEL') || DEFAULT_TEXT_MODEL).trim();
 }
 
 function maskKey(k) {
@@ -163,4 +170,19 @@ export async function analyzeImageGroq({ base64DataUrl, model } = {}) {
   ];
   const raw = await callGroq({ messages, model: resolveGroqModel(model) });
   return normalizeArticleResult(raw);
+}
+
+// Text-only barcode analysis. Used as a fallback ONLY when public databases
+// (Open Food Facts & co.) don't recognize the code. The strict prompt
+// instructs the LLM to return empty fields rather than hallucinate.
+export async function analyzeBarcodeGroq({ barcode, model } = {}) {
+  const code = String(barcode || '').trim();
+  if (!code) throw new Error('Code-barres manquant');
+  const messages = [
+    { role: 'user', content: buildBarcodePrompt(code) },
+  ];
+  const raw = await callGroq({ messages, model: resolveGroqTextModel(model) });
+  const normalized = normalizeArticleResult(raw);
+  normalized.code_barres = code;
+  return normalized;
 }

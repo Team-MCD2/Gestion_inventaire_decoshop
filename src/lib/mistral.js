@@ -3,9 +3,12 @@
 // Use it as a LAST-RESORT fallback because of the strict RPM limit.
 // Get a key: https://console.mistral.ai/api-keys (no credit card required)
 
-import { IMAGE_PROMPT, normalizeArticleResult } from './llm-vision-prompt.js';
+import { IMAGE_PROMPT, buildBarcodePrompt, normalizeArticleResult } from './llm-vision-prompt.js';
 
 const DEFAULT_MODEL = 'pixtral-12b-latest';
+// Text-only model for barcode lookup fallback (no image needed).
+// mistral-large-latest is more knowledgeable but counts more tokens; small is plenty here.
+const DEFAULT_TEXT_MODEL = 'mistral-small-latest';
 const MAX_INDEXED_KEYS = 10;
 const COOLDOWN_QUOTA_MS = 60 * 1000;
 const COOLDOWN_INVALID_MS = 60 * 60 * 1000;
@@ -44,6 +47,10 @@ export function getMistralKeyCount() {
 
 export function resolveMistralModel(overrideModel) {
   return (overrideModel || readEnv('MISTRAL_MODEL') || DEFAULT_MODEL).trim();
+}
+
+export function resolveMistralTextModel(overrideModel) {
+  return (overrideModel || readEnv('MISTRAL_TEXT_MODEL') || DEFAULT_TEXT_MODEL).trim();
 }
 
 function maskKey(k) {
@@ -158,4 +165,17 @@ export async function analyzeImageMistral({ base64DataUrl, model } = {}) {
   ];
   const raw = await callMistral({ messages, model: resolveMistralModel(model) });
   return normalizeArticleResult(raw);
+}
+
+// Text-only barcode analysis. Last-resort fallback after public databases.
+export async function analyzeBarcodeMistral({ barcode, model } = {}) {
+  const code = String(barcode || '').trim();
+  if (!code) throw new Error('Code-barres manquant');
+  const messages = [
+    { role: 'user', content: buildBarcodePrompt(code) },
+  ];
+  const raw = await callMistral({ messages, model: resolveMistralTextModel(model) });
+  const normalized = normalizeArticleResult(raw);
+  normalized.code_barres = code;
+  return normalized;
 }

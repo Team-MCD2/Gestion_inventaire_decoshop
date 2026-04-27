@@ -194,6 +194,7 @@ function toast(msg, type = 'info', duration = 3600) {
   const color =
     type === 'error'   ? 'bg-red-600 text-white' :
     type === 'success' ? 'bg-emerald-600 text-white' :
+    type === 'warning' ? 'bg-amber-500 text-white' :
                          'bg-slate-900 text-white';
   el.className = `${base} ${color} toast-enter`;
   el.textContent = msg;
@@ -345,7 +346,7 @@ async function onBarcodeDetected(code) {
   overlay.classList.remove('hidden');
   await stopBarcodeScanner();
   try {
-    const { result, source, notice } = await analyzeBarcode(code);
+    const { result, source, confidence, notice } = await analyzeBarcode(code);
     setFormData({ ...result, code_barres: result.code_barres || code }, 'create');
     const SOURCE_LABELS = {
       openfoodfacts:    'Open Food Facts',
@@ -355,11 +356,18 @@ async function onBarcodeDetected(code) {
       openlibrary:      'Open Library',
       upcitemdb:        'UPCitemDB',
     };
-    if (source && SOURCE_LABELS[source]) {
+    const LLM_LABELS = { gemini: 'Gemini', groq: 'Groq Llama', mistral: 'Mistral' };
+
+    if (confidence === 'high' && source && SOURCE_LABELS[source]) {
+      // Verified public-DB hit
       toast(`Produit identifié via ${SOURCE_LABELS[source]} (${code})`, 'success');
+    } else if (confidence === 'low' && typeof source === 'string' && source.startsWith('llm:')) {
+      // LLM suggestion — must be verified
+      const provider = source.slice(4);
+      const label = LLM_LABELS[provider] || provider;
+      toast(`⚠ Suggestion IA (${label}) pour ${code} — VÉRIFIEZ les champs avant validation.`, 'warning', 8000);
     } else {
-      // Unknown product or invalid checksum — show the explanatory notice
-      // and let the user fill the form by hand. Better than a wrong guess.
+      // Unknown / invalid checksum / rate-limited — manual entry
       toast(notice || `Code ${code} : produit non identifié — complétez manuellement.`, 'info', 6000);
     }
     await closeScanner();
