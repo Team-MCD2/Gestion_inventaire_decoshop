@@ -15,8 +15,7 @@ function emptyArticle(code) {
   return {
     code_barres: String(code || '').trim(),
     description: '', marque: '', modele: '', categorie: '',
-    couleur: '', ref_couleur: '', taille: '', taille_canape: '',
-    photo_url: '', prix_achat: 0, prix_vente: 0,
+    taille: '', photo_url: '', prix_vente: 0,
   };
 }
 

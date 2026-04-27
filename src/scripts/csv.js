@@ -5,18 +5,12 @@ const HEADERS = [
   { key: 'marque',             label: 'Marque' },
   { key: 'modele',             label: 'Modele' },
   { key: 'description',        label: 'Description' },
-  { key: 'prix_achat',         label: 'Prix achat' },
   { key: 'prix_vente',         label: 'Prix vente' },
-  { key: 'marge',              label: 'Marge' },
   { key: 'code_barres',        label: 'Code-barres' },
-  { key: 'couleur',            label: 'Couleur' },
-  { key: 'ref_couleur',        label: 'Ref couleur' },
   { key: 'taille',             label: 'Taille' },
-  { key: 'taille_canape',      label: 'Taille canape' },
   { key: 'quantite_initiale',  label: 'Quantite initiale' },
   { key: 'quantite',           label: 'Quantite' },
   { key: 'statut',             label: 'Statut' },
-  { key: 'shopify_product_id', label: 'Shopify product ID' },
 ];
 
 const STATUT_LABELS = {
@@ -43,7 +37,7 @@ export function articlesToCSV(articles) {
   const rows = articles.map((a) =>
     HEADERS.map((h) => {
       const raw = a[h.key];
-      if (['prix_achat', 'prix_vente', 'marge'].includes(h.key)) return escape(fmtNumber(raw));
+      if (h.key === 'prix_vente') return escape(fmtNumber(raw));
       if (h.key === 'statut') return escape(STATUT_LABELS[raw] || '');
       return escape(raw ?? '');
     }).join(';')

@@ -4,7 +4,7 @@
 // it works. We only switch to the next key when the current one returns a
 // quota error (429) or invalid-key error (403). Per-key cooldowns prevent
 // retrying a key we just exhausted.
-import { buildBarcodePrompt, normalizeArticleResult } from './llm-vision-prompt.js';
+import { IMAGE_PROMPT, buildBarcodePrompt, normalizeArticleResult } from './llm-vision-prompt.js';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 const MAX_INDEXED_KEYS = 20;
@@ -52,11 +52,7 @@ const RESPONSE_SCHEMA = {
     modele:       { type: 'STRING' },
     description:  { type: 'STRING' },
     code_barres:  { type: 'STRING' },
-    couleur:      { type: 'STRING' },
-    ref_couleur:  { type: 'STRING' },
     taille:       { type: 'STRING' },
-    taille_canape:{ type: 'STRING' },
-    prix_achat:   { type: 'NUMBER' },
     prix_vente:   { type: 'NUMBER' },
   },
 };
@@ -227,30 +223,16 @@ export async function analyzeImage({ base64DataUrl, apiKey, model }) {
   const mimeType = match[1];
   const data = match[2];
 
-  const prompt = `Tu es un expert en inventaire pour un magasin de décoration (DECO SHOP).
-Analyse la photo fournie et renvoie un JSON strict conforme au schéma:
-- categorie: parmi (Mobilier, Luminaire, Textile, Décoration murale, Vaisselle, Électroménager, Jardin, Rangement, Jouet, Électronique, Autre)
-- marque: nom de la marque visible ou reconnaissable ("" si inconnue)
-- modele: nom/référence du modèle ("" si inconnu)
-- description: description courte et précise en français (1 à 2 phrases : matériaux, style, usage)
-- code_barres: code-barres EAN/UPC/GTIN visible sur l'étiquette (uniquement chiffres, "" si absent)
-- couleur: nom de la couleur principale en français (ex: "Bleu nuit", "Bordeaux", "Bois clair")
-- ref_couleur: référence numérique de la couleur si imprimée sur l'étiquette (ex: "020", "035"), "" si absente
-- taille: dimensions ou taille (ex: "L120 x l60 x H75 cm", "Ø30 cm", ou pour la literie "90x190", "140x190"), "" si inconnu
-- taille_canape: pour un canapé uniquement, parmi ("1 place", "2 places", "3 places", "Angle", "Méridienne"), sinon ""
-- prix_achat: prix d'achat grossiste estimé en EUR (nombre ; 0 si inconnu)
-- prix_vente: prix de vente public conseillé estimé en EUR (nombre ; 0 si inconnu)
-
-Réponds STRICTEMENT en JSON conforme au schéma, sans commentaire ni markdown.`;
-
-  return callGemini({
+  // Use the shared image prompt (single source of truth across providers)
+  const raw = await callGemini({
     parts: [
-      { text: prompt },
+      { text: IMAGE_PROMPT },
       { inline_data: { mime_type: mimeType, data } },
     ],
     apiKeys: resolveKeys(apiKey),
     model: resolveModel(model),
   });
+  return normalizeArticleResult(raw);
 }
 
 export async function analyzeBarcode({ barcode, apiKey, model }) {

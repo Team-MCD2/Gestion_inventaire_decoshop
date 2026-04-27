@@ -38,6 +38,12 @@ function resolveDbUrl() {
 }
 
 // MCD-aligned schema (cf. mcd_mld.md §2 Articles)
+//
+// NOTE: les colonnes legacy (couleur, ref_couleur, taille_canape, prix_achat,
+// shopify_product_id) sont conservées dans le DDL pour ne pas casser les bases
+// déjà déployées. L'application ne les lit/écrit plus, elles restent à leur
+// valeur par défaut ("" ou 0). Elles peuvent être supprimées lors d'une
+// future opération de cleanup manuelle.
 async function initSchema(c) {
   await c.executeMultiple(`
     CREATE TABLE IF NOT EXISTS articles (
@@ -127,17 +133,10 @@ export function computeStatut(row) {
   return 'en_stock';
 }
 
-export function computeMarge(row) {
-  const achat = Number(row.prix_achat || 0);
-  const vente = Number(row.prix_vente || 0);
-  return Math.round((vente - achat) * 100) / 100;
-}
-
 function decorate(row) {
   if (!row) return null;
   return {
     ...row,
-    marge: computeMarge(row),
     statut: computeStatut(row),
   };
 }
@@ -201,9 +200,6 @@ function normalize(data, existing = null) {
     marque:      String(data.marque ?? existing?.marque ?? '').trim(),
     modele:      String(data.modele ?? existing?.modele ?? '').trim(),
     categorie:   String(data.categorie ?? existing?.categorie ?? '').trim(),
-    couleur:     String(data.couleur ?? existing?.couleur ?? '').trim(),
-    ref_couleur: String(data.ref_couleur ?? existing?.ref_couleur ?? '').trim(),
-    prix_achat:  Number(data.prix_achat ?? existing?.prix_achat ?? 0) || 0,
     prix_vente:  Number(data.prix_vente ?? existing?.prix_vente ?? 0) || 0,
     quantite:           Number.isFinite(q) ? q : 0,
     quantite_initiale:  Number.isFinite(qInit) ? qInit : 0,
@@ -211,8 +207,6 @@ function normalize(data, existing = null) {
     photo_url:    String(data.photo_url ?? existing?.photo_url ?? ''),
     code_barres:  String(data.code_barres ?? existing?.code_barres ?? '').trim(),
     taille:       String(data.taille ?? existing?.taille ?? '').trim(),
-    taille_canape: String(data.taille_canape ?? existing?.taille_canape ?? '').trim(),
-    shopify_product_id: String(data.shopify_product_id ?? existing?.shopify_product_id ?? '').trim(),
   };
 }
 
@@ -225,14 +219,14 @@ export async function createArticle(data) {
   await c.execute({
     sql: `
       INSERT INTO articles (
-        id, numero_article, description, marque, modele, categorie, couleur, ref_couleur,
-        prix_achat, prix_vente, quantite, quantite_initiale, seuil_stock_faible,
-        photo_url, code_barres, taille, taille_canape, shopify_product_id,
+        id, numero_article, description, marque, modele, categorie,
+        prix_vente, quantite, quantite_initiale, seuil_stock_faible,
+        photo_url, code_barres, taille,
         created_at, updated_at
       ) VALUES (
-        :id, :numero_article, :description, :marque, :modele, :categorie, :couleur, :ref_couleur,
-        :prix_achat, :prix_vente, :quantite, :quantite_initiale, :seuil_stock_faible,
-        :photo_url, :code_barres, :taille, :taille_canape, :shopify_product_id,
+        :id, :numero_article, :description, :marque, :modele, :categorie,
+        :prix_vente, :quantite, :quantite_initiale, :seuil_stock_faible,
+        :photo_url, :code_barres, :taille,
         :created_at, :updated_at
       )
     `,
@@ -265,9 +259,6 @@ export async function updateArticle(id, data) {
         marque = :marque,
         modele = :modele,
         categorie = :categorie,
-        couleur = :couleur,
-        ref_couleur = :ref_couleur,
-        prix_achat = :prix_achat,
         prix_vente = :prix_vente,
         quantite = :quantite,
         quantite_initiale = :quantite_initiale,
@@ -275,8 +266,6 @@ export async function updateArticle(id, data) {
         photo_url = :photo_url,
         code_barres = :code_barres,
         taille = :taille,
-        taille_canape = :taille_canape,
-        shopify_product_id = :shopify_product_id,
         updated_at = :updated_at
       WHERE id = :id
     `,

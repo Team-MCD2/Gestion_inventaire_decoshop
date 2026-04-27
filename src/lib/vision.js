@@ -55,7 +55,6 @@ export async function visionAnnotate(base64DataUrl, { apiKey } = {}) {
         { type: 'LABEL_DETECTION',        maxResults: 8 },
         { type: 'OBJECT_LOCALIZATION',    maxResults: 5 },
         { type: 'TEXT_DETECTION' },
-        { type: 'IMAGE_PROPERTIES' },
       ],
       imageContext: { languageHints: ['fr', 'en'] },
     }],
@@ -80,13 +79,6 @@ export async function visionAnnotate(base64DataUrl, { apiKey } = {}) {
     labels: (r.labelAnnotations || []).map((l) => ({ name: l.description, score: l.score || 0 })),
     objects: (r.localizedObjectAnnotations || []).map((o) => ({ name: o.name, score: o.score || 0 })),
     text: r.fullTextAnnotation?.text || r.textAnnotations?.[0]?.description || '',
-    colors: (r.imagePropertiesAnnotation?.dominantColors?.colors || []).slice(0, 3).map((c) => ({
-      r: Math.round(c.color?.red || 0),
-      g: Math.round(c.color?.green || 0),
-      b: Math.round(c.color?.blue || 0),
-      score: c.score || 0,
-      pixelFraction: c.pixelFraction || 0,
-    })),
   };
 }
 
@@ -100,59 +92,11 @@ const DIAM_REGEX = /[Ø∅⌀]\s*\d{1,4}(?:[.,]\d+)?\s*(?:cm|mm|m)?/;
 // price patterns: "12,99 €", "12.99€", "EUR 12.99"
 const PRICE_REGEX = /(\d+(?:[.,]\d{1,2}))\s*(?:€|EUR\b)|(?:€|EUR)\s*(\d+(?:[.,]\d{1,2}))/i;
 
-function rgbToFrenchColor({ r, g, b }) {
-  if (r == null) return '';
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
-
-  // Achromatic (gray axis)
-  if (delta < 25) {
-    if (max < 50) return 'Noir';
-    if (max < 100) return 'Gris foncé';
-    if (max < 180) return 'Gris';
-    if (max < 230) return 'Gris clair';
-    return 'Blanc';
-  }
-
-  // Convert to HSL for hue
-  const r1 = r / 255, g1 = g / 255, b1 = b / 255;
-  const mx = Math.max(r1, g1, b1), mn = Math.min(r1, g1, b1);
-  const l = (mx + mn) / 2;
-  const d = mx - mn;
-  let h = 0;
-  if (d > 0) {
-    if (mx === r1) h = ((g1 - b1) / d) % 6;
-    else if (mx === g1) h = (b1 - r1) / d + 2;
-    else h = (r1 - g1) / d + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
-
-  if (s < 0.15) return l < 0.4 ? 'Gris foncé' : (l > 0.7 ? 'Gris clair' : 'Gris');
-
-  // Brown special case (low lightness, low-medium saturation, hue 15-50)
-  if (h >= 15 && h <= 50 && l < 0.45 && s < 0.7) return 'Marron';
-  // Beige (high lightness, low-medium saturation, hue 30-60)
-  if (h >= 30 && h <= 60 && l > 0.7 && s < 0.5) return 'Beige';
-
-  if (h < 15 || h >= 345) return 'Rouge';
-  if (h < 35) return 'Orange';
-  if (h < 65) return 'Jaune';
-  if (h < 165) return 'Vert';
-  if (h < 200) return 'Cyan';
-  if (h < 260) return 'Bleu';
-  if (h < 310) return 'Violet';
-  return 'Rose';
-}
-
 export function extractFromVision(v) {
   const out = {
     marque: '',
     code_barres: '',
     taille: '',
-    couleur: '',
     detectedPrice: 0,
     fallbackCategorie: '',
     logoConfidence: 0,
@@ -183,9 +127,6 @@ export function extractFromVision(v) {
     const n = Number(raw);
     if (Number.isFinite(n) && n > 0 && n < 100000) out.detectedPrice = n;
   }
-
-  // Couleur dominante
-  if (v.colors?.length) out.couleur = rgbToFrenchColor(v.colors[0]);
 
   // Catégorie fallback : meilleur label "physique" (en évitant les abstractions)
   if (v.labels?.length) {

@@ -15,11 +15,10 @@ const $  = (sel, root = document) => root.querySelector(sel);
 // Field names match the MCD schema (cf. mcd_mld.md §2 articles)
 const TEXT_FIELDS = [
   'numero_article', 'categorie', 'marque', 'modele', 'description',
-  'code_barres', 'couleur', 'ref_couleur', 'taille', 'taille_canape',
-  'shopify_product_id',
+  'code_barres', 'taille',
 ];
 const NUMBER_FIELDS = [
-  'prix_achat', 'prix_vente', 'quantite_initiale', 'quantite',
+  'prix_vente', 'quantite_initiale', 'quantite',
 ];
 const FIELDS = [...TEXT_FIELDS, ...NUMBER_FIELDS];
 
@@ -29,7 +28,6 @@ const FORMS = {
     form: '#article-form',
     photo: '#photo-preview',
     photoPlaceholder: '#photo-placeholder',
-    marge: '#marge-display',
     statut: '#statut-preview',
     removePhotoBtn: null,
   },
@@ -37,7 +35,6 @@ const FORMS = {
     form: '#edit-form',
     photo: '#edit-photo-preview',
     photoPlaceholder: '#edit-photo-placeholder',
-    marge: '#edit-marge-display',
     statut: '#edit-statut-preview',
     removePhotoBtn: '#btn-edit-remove-photo',
   },
@@ -83,24 +80,7 @@ function setFormData(data, mode = 'create') {
   const photo = data.photo_url || data.photo;
   if (photo) setPhoto(photo, mode);
   else if (mode === 'edit') clearPhoto(mode);
-  updateMarge(mode);
   updateStatutPreview(mode);
-}
-
-function updateMarge(mode = 'create') {
-  const cfg = FORMS[mode];
-  const form = $(cfg.form);
-  if (!form) return;
-  const achat = Number(form.elements.namedItem('prix_achat')?.value || 0);
-  const vente = Number(form.elements.namedItem('prix_vente')?.value || 0);
-  const marge = (vente - achat) || 0;
-  const el = $(cfg.marge);
-  if (!el) return;
-  el.textContent = marge.toFixed(2).replace('.', ',') + ' €';
-  el.classList.remove('text-emerald-600', 'text-red-600', 'text-slate-500');
-  if (marge > 0) el.classList.add('text-emerald-600');
-  else if (marge < 0) el.classList.add('text-red-600');
-  else el.classList.add('text-slate-500');
 }
 
 function updateStatutPreview(mode = 'create') {
@@ -148,7 +128,6 @@ async function clearForm() {
   form.elements.namedItem('quantite_initiale').value = 1;
   form.elements.namedItem('quantite').value = 1;
   delete form.elements.namedItem('quantite').dataset.touched;
-  updateMarge('create');
   updateStatutPreview('create');
   // Fetch next num async
   const num = await getNextNumArticle();
@@ -443,14 +422,9 @@ function renderTable() {
       <td class="px-3 py-2">${escapeHtml(a.marque || '')}</td>
       <td class="px-3 py-2">${escapeHtml(a.modele || '')}</td>
       <td class="px-3 py-2 max-w-xs"><div class="line-clamp-2 text-slate-600">${escapeHtml(a.description || '')}</div></td>
-      <td class="px-3 py-2 text-right tabular-nums">${fmtPrice(a.prix_achat)}</td>
       <td class="px-3 py-2 text-right tabular-nums">${fmtPrice(a.prix_vente)}</td>
-      <td class="px-3 py-2 text-right tabular-nums font-semibold ${a.marge > 0 ? 'text-emerald-600' : a.marge < 0 ? 'text-red-600' : 'text-slate-500'}">${fmtPrice(a.marge)}</td>
       <td class="px-3 py-2 font-mono text-xs">${escapeHtml(a.code_barres || '')}</td>
-      <td class="px-3 py-2">${escapeHtml(a.couleur || '')}</td>
-      <td class="px-3 py-2 font-mono text-xs">${escapeHtml(a.ref_couleur || '')}</td>
       <td class="px-3 py-2 whitespace-nowrap text-xs">${escapeHtml(a.taille || '')}</td>
-      <td class="px-3 py-2 whitespace-nowrap text-xs">${escapeHtml(a.taille_canape || '')}</td>
       <td class="px-3 py-2 text-right tabular-nums">${a.quantite_initiale ?? ''}</td>
       <td class="px-3 py-2 text-right tabular-nums font-semibold">${a.quantite ?? ''}</td>
       <td class="px-3 py-2 whitespace-nowrap">${renderStatusBadge(a.statut)}</td>
@@ -498,10 +472,6 @@ function wireEvents() {
 
   // Form
   const form = $('#article-form');
-
-  // Auto-recalc marge when prices change
-  form.elements.namedItem('prix_achat').addEventListener('input', () => updateMarge('create'));
-  form.elements.namedItem('prix_vente').addEventListener('input', () => updateMarge('create'));
 
   // Sync quantite_initiale → quantite on create (as long as user hasn't touched quantite)
   const qInit = form.elements.namedItem('quantite_initiale');
@@ -567,9 +537,6 @@ function wireEvents() {
   $('#btn-edit-cancel').addEventListener('click', closeEditModal);
   $('#edit-backdrop').addEventListener('click', closeEditModal);
 
-  // Auto-recalc marge in edit modal
-  editForm.elements.namedItem('prix_achat').addEventListener('input', () => updateMarge('edit'));
-  editForm.elements.namedItem('prix_vente').addEventListener('input', () => updateMarge('edit'));
   // Auto-recalc statut in edit modal
   editForm.elements.namedItem('quantite').addEventListener('input', () => updateStatutPreview('edit'));
   editForm.elements.namedItem('quantite_initiale').addEventListener('input', () => updateStatutPreview('edit'));

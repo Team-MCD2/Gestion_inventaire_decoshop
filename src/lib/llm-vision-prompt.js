@@ -9,8 +9,6 @@ export const CATEGORIES = [
   'Jouet', 'Électronique', 'Autre',
 ];
 
-export const SOFA_SIZES = ['1 place', '2 places', '3 places', 'Angle', 'Méridienne'];
-
 // Strict prompt used as a LAST-RESORT fallback when public barcode databases
 // (Open Food Facts & co.) don't know the code. The wording explicitly tells
 // the LLM NOT to guess if it doesn't recognize the code — better to return
@@ -27,10 +25,7 @@ RÈGLES CRITIQUES:
 Si tu reconnais avec certitude, renvoie un JSON conforme:
 - categorie: parmi (${CATEGORIES.join(', ')})
 - marque, modele, description (français, concis)
-- couleur, ref_couleur (si connues)
-- taille (ex: "90x190" pour literie, "L120 x H75 cm" pour mobilier)
-- taille_canape (si canapé : ${SOFA_SIZES.join(', ')}, sinon "")
-- prix_achat: prix d'achat estimé EUR (0 si inconnu)
+- taille (ex: "90x190" pour literie, "L120 x H75 cm" pour mobilier, "" si inconnu)
 - prix_vente: prix de vente public estimé EUR (0 si inconnu)
 
 Réponds uniquement en JSON conforme au schéma, sans commentaire ni markdown.`;
@@ -44,11 +39,7 @@ Analyse la photo fournie et renvoie un JSON strict conforme au schéma:
 - modele: nom/référence du modèle ("" si inconnu)
 - description: description courte et précise en français (1 à 2 phrases : matériaux, style, usage)
 - code_barres: code-barres EAN/UPC/GTIN visible sur l'étiquette (uniquement chiffres, "" si absent)
-- couleur: nom de la couleur principale en français (ex: "Bleu nuit", "Bordeaux", "Bois clair")
-- ref_couleur: référence numérique de la couleur si imprimée sur l'étiquette (ex: "020", "035"), "" si absente
 - taille: dimensions ou taille (ex: "L120 x l60 x H75 cm", "Ø30 cm", ou pour la literie "90x190", "140x190"), "" si inconnu
-- taille_canape: pour un canapé uniquement, parmi (${SOFA_SIZES.join(', ')}), sinon ""
-- prix_achat: prix d'achat grossiste estimé en EUR (nombre ; 0 si inconnu)
 - prix_vente: prix de vente public conseillé estimé en EUR (nombre ; 0 si inconnu)
 
 Réponds STRICTEMENT en JSON conforme au schéma, sans commentaire ni markdown.`;
@@ -62,16 +53,11 @@ export const RESPONSE_JSON_SCHEMA = {
     modele:       { type: 'string' },
     description:  { type: 'string' },
     code_barres:  { type: 'string' },
-    couleur:      { type: 'string' },
-    ref_couleur:  { type: 'string' },
     taille:       { type: 'string' },
-    taille_canape:{ type: 'string' },
-    prix_achat:   { type: 'number' },
     prix_vente:   { type: 'number' },
   },
   required: [
-    'categorie','marque','modele','description','code_barres',
-    'couleur','ref_couleur','taille','taille_canape','prix_achat','prix_vente',
+    'categorie','marque','modele','description','code_barres','taille','prix_vente',
   ],
   additionalProperties: false,
 };
@@ -80,9 +66,8 @@ export const RESPONSE_JSON_SCHEMA = {
 export function emptyArticleResult() {
   return {
     categorie: '', marque: '', modele: '', description: '',
-    code_barres: '', couleur: '', ref_couleur: '',
-    taille: '', taille_canape: '',
-    prix_achat: 0, prix_vente: 0,
+    code_barres: '', taille: '',
+    prix_vente: 0,
   };
 }
 
@@ -96,11 +81,7 @@ export function normalizeArticleResult(raw) {
     modele:       String(r.modele       ?? def.modele),
     description:  String(r.description  ?? def.description),
     code_barres:  String(r.code_barres  ?? def.code_barres),
-    couleur:      String(r.couleur      ?? def.couleur),
-    ref_couleur:  String(r.ref_couleur  ?? def.ref_couleur),
     taille:       String(r.taille       ?? def.taille),
-    taille_canape:String(r.taille_canape?? def.taille_canape),
-    prix_achat:   Number(r.prix_achat) || 0,
     prix_vente:   Number(r.prix_vente)  || 0,
   };
 }

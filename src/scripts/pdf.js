@@ -3,8 +3,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const HEADERS = [
-  'N°', 'Cat.', 'Marque', 'Modèle', 'Code-barres', 'Couleur',
-  'Taille', 'P. achat', 'P. vente', 'Marge', 'Qté init', 'Qté', 'Statut',
+  'N°', 'Cat.', 'Marque', 'Modèle', 'Code-barres',
+  'Taille', 'P. vente', 'Qté init', 'Qté', 'Statut',
 ];
 
 const STATUT_LABELS = {
@@ -42,10 +42,9 @@ export function downloadPDF(articles) {
     doc.internal.pageSize.getWidth() - 40, 28, { align: 'right' });
 
   // Totals
-  const totalAchat = articles.reduce((s, a) => s + (Number(a.prix_achat) || 0) * (Number(a.quantite) || 0), 0);
   const totalVente = articles.reduce((s, a) => s + (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0), 0);
   doc.text(
-    `Valeur stock — achat: ${totalAchat.toFixed(2)} €  ·  vente: ${totalVente.toFixed(2)} €  ·  marge potentielle: ${(totalVente - totalAchat).toFixed(2)} €`,
+    `Valeur stock — vente: ${totalVente.toFixed(2)} €`,
     doc.internal.pageSize.getWidth() - 40, 44, { align: 'right' }
   );
 
@@ -55,11 +54,8 @@ export function downloadPDF(articles) {
     a.marque || '',
     a.modele || '',
     a.code_barres || '',
-    a.couleur || '',
     a.taille || '',
-    fmt(Number(a.prix_achat)),
     fmt(Number(a.prix_vente)),
-    fmt(Number(a.marge)),
     String(a.quantite_initiale ?? ''),
     String(a.quantite ?? ''),
     STATUT_LABELS[a.statut] || '',
@@ -76,16 +72,14 @@ export function downloadPDF(articles) {
     columnStyles: {
       0: { cellWidth: 55, fontStyle: 'bold' },
       1: { cellWidth: 65 },
-      6: { cellWidth: 70 },
-      7: { halign: 'right', cellWidth: 55 },
-      8: { halign: 'right', cellWidth: 55 },
-      9: { halign: 'right', cellWidth: 55, fontStyle: 'bold' },
-      10: { halign: 'right', cellWidth: 45 },
-      11: { halign: 'right', cellWidth: 45 },
-      12: { cellWidth: 65, halign: 'center' },
+      5: { cellWidth: 70 },
+      6: { halign: 'right', cellWidth: 60, fontStyle: 'bold' },
+      7: { halign: 'right', cellWidth: 50 },
+      8: { halign: 'right', cellWidth: 50 },
+      9: { cellWidth: 70, halign: 'center' },
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 12) {
+      if (data.section === 'body' && data.column.index === 9) {
         const s = articles[data.row.index]?.statut;
         if (s === 'rupture') {
           data.cell.styles.textColor = [185, 28, 28];
