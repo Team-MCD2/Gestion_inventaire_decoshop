@@ -1,10 +1,16 @@
-// SQLite database layer — @libsql/client, MCD-aligned schema
-// Uses a local file (file:./data/inventaire.db) for dev, Turso (libsql://...) in production.
-// All exported functions are async.
-import { createClient } from '@libsql/client';
-import path from 'node:path';
-import fs from 'node:fs';
+// Supabase Postgres data layer.
+// Replaces the previous libsql/Turso implementation. The exported API
+// (listArticles, getArticle, nextNumArticle, createArticle, updateArticle,
+// deleteArticle, clearAllArticles, computeStatut) is unchanged so the API
+// routes (src/pages/api/...) and the client need no modification.
+//
+// We always run server-side (Astro SSR / Vercel functions) and use the
+// SERVICE_ROLE key which bypasses RLS. Never expose this key to the browser.
+//
+// Schema lives in supabase/schema.sql — run it once in the Supabase SQL editor.
+import { createClient } from '@supabase/supabase-js';
 
+const TABLE = 'articles';
 const DEFAULT_SEUIL = 5;
 
 // --- Env helpers ---------------------------------------------------------
@@ -19,115 +25,32 @@ function readEnv(name) {
 
 // --- Client (lazy, singleton) -------------------------------------------
 let client = null;
-let initPromise = null;
 
-function resolveDbUrl() {
-  const remote = readEnv('TURSO_DATABASE_URL').trim();
-  if (remote) return { url: remote, authToken: readEnv('TURSO_AUTH_TOKEN').trim() || undefined };
-
-  const dataDir = path.resolve(process.cwd(), 'data');
-  try {
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  } catch (e) {
-    throw new Error(
-      "Impossible de créer le dossier 'data/' (système de fichiers en lecture seule ?). " +
-      "Définissez TURSO_DATABASE_URL pour utiliser une base distante."
-    );
-  }
-  return { url: 'file:' + path.join(dataDir, 'inventaire.db') };
-}
-
-// MCD-aligned schema (cf. mcd_mld.md §2 Articles)
-//
-// NOTE: les colonnes legacy (couleur, ref_couleur, taille_canape, prix_achat,
-// shopify_product_id) sont conservées dans le DDL pour ne pas casser les bases
-// déjà déployées. L'application ne les lit/écrit plus, elles restent à leur
-// valeur par défaut ("" ou 0). Elles peuvent être supprimées lors d'une
-// future opération de cleanup manuelle.
-async function initSchema(c) {
-  await c.executeMultiple(`
-    CREATE TABLE IF NOT EXISTS articles (
-      id TEXT PRIMARY KEY,
-      numero_article TEXT NOT NULL UNIQUE,
-      description TEXT NOT NULL DEFAULT '',
-      marque TEXT NOT NULL DEFAULT '',
-      modele TEXT NOT NULL DEFAULT '',
-      categorie TEXT NOT NULL DEFAULT '',
-      couleur TEXT NOT NULL DEFAULT '',
-      ref_couleur TEXT NOT NULL DEFAULT '',
-      prix_achat REAL NOT NULL DEFAULT 0,
-      prix_vente REAL NOT NULL DEFAULT 0,
-      quantite INTEGER NOT NULL DEFAULT 0,
-      quantite_initiale INTEGER NOT NULL DEFAULT 0,
-      seuil_stock_faible INTEGER NOT NULL DEFAULT ${DEFAULT_SEUIL},
-      photo_url TEXT NOT NULL DEFAULT '',
-      code_barres TEXT NOT NULL DEFAULT '',
-      taille TEXT NOT NULL DEFAULT '',
-      taille_canape TEXT NOT NULL DEFAULT '',
-      shopify_product_id TEXT NOT NULL DEFAULT '',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_articles_numero ON articles(numero_article);
-    CREATE INDEX IF NOT EXISTS idx_articles_categorie ON articles(categorie);
-    CREATE INDEX IF NOT EXISTS idx_articles_code_barres ON articles(code_barres);
-    CREATE INDEX IF NOT EXISTS idx_articles_created ON articles(created_at);
-  `);
-}
-
-// Idempotent migration : if the table existed with the old (pre-MCD) schema,
-// rename columns and add the new ones in place. Safe no-op for a fresh install.
-async function migrateSchema(c) {
-  const info = await c.execute('PRAGMA table_info(articles)');
-  if (!info.rows.length) return; // brand-new install, initSchema handles it
-  const cols = new Set(info.rows.map((r) => r.name));
-
-  const renames = [
-    ['num_article', 'numero_article'],
-    ['reference', 'code_barres'],
-    ['dimension', 'taille'],
-    ['quantite_actuelle', 'quantite'],
-    ['photo', 'photo_url'],
-  ];
-  for (const [from, to] of renames) {
-    if (cols.has(from) && !cols.has(to)) {
-      await c.execute(`ALTER TABLE articles RENAME COLUMN ${from} TO ${to}`);
-      cols.delete(from);
-      cols.add(to);
-    }
-  }
-
-  const added = [
-    ['ref_couleur',        "TEXT NOT NULL DEFAULT ''"],
-    ['taille_canape',      "TEXT NOT NULL DEFAULT ''"],
-    ['shopify_product_id', "TEXT NOT NULL DEFAULT ''"],
-  ];
-  for (const [name, type] of added) {
-    if (!cols.has(name)) {
-      await c.execute(`ALTER TABLE articles ADD COLUMN ${name} ${type}`);
-      cols.add(name);
-    }
-  }
-}
-
-async function getDb() {
+function getDb() {
   if (client) return client;
-  if (!initPromise) {
-    initPromise = (async () => {
-      const { url, authToken } = resolveDbUrl();
-      client = createClient({ url, authToken });
-      await initSchema(client);
-      await migrateSchema(client);
-      return client;
-    })();
+  const url = readEnv('SUPABASE_URL').trim();
+  const key = (
+    readEnv('SUPABASE_SERVICE_ROLE_KEY') ||
+    readEnv('SUPABASE_SERVICE_ROLE')     ||
+    readEnv('SUPABASE_KEY')
+  ).trim();
+  if (!url || !key) {
+    throw new Error(
+      'Supabase non configuré. Définissez SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY ' +
+      'dans .env (voir .env.example).'
+    );
   }
-  return initPromise;
+  client = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    db:   { schema: 'public' },
+  });
+  return client;
 }
 
 // --- Computed fields ----------------------------------------------------
 export function computeStatut(row) {
-  const q = Number(row.quantite || 0);
-  const seuil = Number(row.seuil_stock_faible || DEFAULT_SEUIL);
+  const q = Number(row?.quantite || 0);
+  const seuil = Number(row?.seuil_stock_faible || DEFAULT_SEUIL);
   if (q <= 0) return 'rupture';
   if (q <= seuil) return 'stock_faible';
   return 'en_stock';
@@ -135,37 +58,61 @@ export function computeStatut(row) {
 
 function decorate(row) {
   if (!row) return null;
+  return { ...row, statut: computeStatut(row) };
+}
+
+// --- Helpers ------------------------------------------------------------
+function normalize(data, existing = null) {
+  const qInit = data.quantite_initiale !== undefined && data.quantite_initiale !== ''
+    ? Number(data.quantite_initiale)
+    : (existing?.quantite_initiale ?? 0);
+  const q = data.quantite !== undefined && data.quantite !== ''
+    ? Number(data.quantite)
+    : (existing?.quantite ?? qInit);
   return {
-    ...row,
-    statut: computeStatut(row),
+    description: String(data.description ?? existing?.description ?? '').trim(),
+    marque:      String(data.marque      ?? existing?.marque      ?? '').trim(),
+    modele:      String(data.modele      ?? existing?.modele      ?? '').trim(),
+    categorie:   String(data.categorie   ?? existing?.categorie   ?? '').trim(),
+    prix_vente:  Number(data.prix_vente  ?? existing?.prix_vente  ?? 0) || 0,
+    quantite:           Number.isFinite(q) ? q : 0,
+    quantite_initiale:  Number.isFinite(qInit) ? qInit : 0,
+    seuil_stock_faible: Number(data.seuil_stock_faible ?? existing?.seuil_stock_faible ?? DEFAULT_SEUIL) || DEFAULT_SEUIL,
+    photo_url:    String(data.photo_url   ?? existing?.photo_url   ?? ''),
+    code_barres:  String(data.code_barres ?? existing?.code_barres ?? '').trim(),
+    taille:       String(data.taille      ?? existing?.taille      ?? '').trim(),
   };
 }
 
-// libsql may return BigInt for INTEGER columns. Coerce to Number for JSON.
-function coerceRow(row) {
-  if (!row) return null;
-  const out = {};
-  for (const k of Object.keys(row)) {
-    const v = row[k];
-    out[k] = (typeof v === 'bigint') ? Number(v) : v;
-  }
-  return out;
+// Surface a clean Error from a Supabase response — never leak the raw object.
+function rethrow(prefix, error) {
+  if (!error) return;
+  const msg = error.message || error.hint || error.details || 'Erreur Supabase';
+  const err = new Error(`${prefix} : ${msg}`);
+  err.cause = error;
+  throw err;
 }
 
 // --- Public API ---------------------------------------------------------
 export async function listArticles() {
-  const c = await getDb();
-  const result = await c.execute('SELECT * FROM articles ORDER BY created_at DESC');
-  return result.rows.map((r) => decorate(coerceRow(r)));
+  const db = getDb();
+  const { data, error } = await db
+    .from(TABLE)
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) rethrow('Lecture des articles', error);
+  return (data || []).map(decorate);
 }
 
 export async function getArticle(id) {
-  const c = await getDb();
-  const result = await c.execute({
-    sql: 'SELECT * FROM articles WHERE id = ?',
-    args: [id],
-  });
-  return decorate(coerceRow(result.rows[0] || null));
+  const db = getDb();
+  const { data, error } = await db
+    .from(TABLE)
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) rethrow('Lecture d\'un article', error);
+  return decorate(data);
 }
 
 // MCD format : DECO-YYMMDD-XXXXXX (séquence quotidienne, 6 digits)
@@ -176,120 +123,87 @@ export async function nextNumArticle() {
   const dd = String(today.getDate()).padStart(2, '0');
   const prefix = `DECO-${yy}${mm}${dd}-`;
 
-  const c = await getDb();
-  const result = await c.execute({
-    sql: 'SELECT numero_article FROM articles WHERE numero_article LIKE ?',
-    args: [prefix + '%'],
-  });
-  const nums = result.rows
+  const db = getDb();
+  const { data, error } = await db
+    .from(TABLE)
+    .select('numero_article')
+    .like('numero_article', `${prefix}%`);
+  if (error) rethrow('Génération du numéro d\'article', error);
+
+  const nums = (data || [])
     .map((r) => parseInt(String(r.numero_article).slice(prefix.length), 10))
     .filter((n) => !Number.isNaN(n));
   const next = nums.length ? Math.max(...nums) + 1 : 1;
   return prefix + String(next).padStart(6, '0');
 }
 
-function normalize(data, existing = null) {
-  const qInit = data.quantite_initiale !== undefined && data.quantite_initiale !== ''
-    ? Number(data.quantite_initiale)
-    : (existing?.quantite_initiale ?? 0);
-  const q = data.quantite !== undefined && data.quantite !== ''
-    ? Number(data.quantite)
-    : (existing?.quantite ?? qInit);
-  return {
-    description: String(data.description ?? existing?.description ?? '').trim(),
-    marque:      String(data.marque ?? existing?.marque ?? '').trim(),
-    modele:      String(data.modele ?? existing?.modele ?? '').trim(),
-    categorie:   String(data.categorie ?? existing?.categorie ?? '').trim(),
-    prix_vente:  Number(data.prix_vente ?? existing?.prix_vente ?? 0) || 0,
-    quantite:           Number.isFinite(q) ? q : 0,
-    quantite_initiale:  Number.isFinite(qInit) ? qInit : 0,
-    seuil_stock_faible: Number(data.seuil_stock_faible ?? existing?.seuil_stock_faible ?? DEFAULT_SEUIL) || DEFAULT_SEUIL,
-    photo_url:    String(data.photo_url ?? existing?.photo_url ?? ''),
-    code_barres:  String(data.code_barres ?? existing?.code_barres ?? '').trim(),
-    taille:       String(data.taille ?? existing?.taille ?? '').trim(),
-  };
-}
-
 export async function createArticle(data) {
-  const c = await getDb();
+  const db = getDb();
   const now = Date.now();
   const id = data.id || (globalThis.crypto?.randomUUID?.() ?? String(now) + Math.random().toString(36).slice(2, 9));
   const numero_article = String(data.numero_article || '').trim() || (await nextNumArticle());
   const fields = normalize(data);
-  await c.execute({
-    sql: `
-      INSERT INTO articles (
-        id, numero_article, description, marque, modele, categorie,
-        prix_vente, quantite, quantite_initiale, seuil_stock_faible,
-        photo_url, code_barres, taille,
-        created_at, updated_at
-      ) VALUES (
-        :id, :numero_article, :description, :marque, :modele, :categorie,
-        :prix_vente, :quantite, :quantite_initiale, :seuil_stock_faible,
-        :photo_url, :code_barres, :taille,
-        :created_at, :updated_at
-      )
-    `,
-    args: {
+
+  const { data: inserted, error } = await db
+    .from(TABLE)
+    .insert({
       id,
       numero_article,
       ...fields,
       created_at: now,
       updated_at: now,
-    },
-  });
-  return getArticle(id);
+    })
+    .select('*')
+    .single();
+  if (error) rethrow('Création d\'un article', error);
+  return decorate(inserted);
 }
 
 export async function updateArticle(id, data) {
-  const c = await getDb();
-  const existingRes = await c.execute({
-    sql: 'SELECT * FROM articles WHERE id = ?',
-    args: [id],
-  });
-  const existing = coerceRow(existingRes.rows[0] || null);
+  const db = getDb();
+  const { data: existing, error: readErr } = await db
+    .from(TABLE)
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (readErr) rethrow('Lecture d\'un article', readErr);
   if (!existing) return null;
+
   const fields = normalize(data, existing);
   const numero_article = String(data.numero_article ?? existing.numero_article).trim() || existing.numero_article;
-  await c.execute({
-    sql: `
-      UPDATE articles SET
-        numero_article = :numero_article,
-        description = :description,
-        marque = :marque,
-        modele = :modele,
-        categorie = :categorie,
-        prix_vente = :prix_vente,
-        quantite = :quantite,
-        quantite_initiale = :quantite_initiale,
-        seuil_stock_faible = :seuil_stock_faible,
-        photo_url = :photo_url,
-        code_barres = :code_barres,
-        taille = :taille,
-        updated_at = :updated_at
-      WHERE id = :id
-    `,
-    args: {
-      id,
+
+  const { data: updated, error } = await db
+    .from(TABLE)
+    .update({
       numero_article,
       ...fields,
       updated_at: Date.now(),
-    },
-  });
-  return getArticle(id);
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) rethrow('Mise à jour d\'un article', error);
+  return decorate(updated);
 }
 
 export async function deleteArticle(id) {
-  const c = await getDb();
-  const result = await c.execute({
-    sql: 'DELETE FROM articles WHERE id = ?',
-    args: [id],
-  });
-  return Number(result.rowsAffected) > 0;
+  const db = getDb();
+  const { error, count } = await db
+    .from(TABLE)
+    .delete({ count: 'exact' })
+    .eq('id', id);
+  if (error) rethrow('Suppression d\'un article', error);
+  return Number(count || 0) > 0;
 }
 
 export async function clearAllArticles() {
-  const c = await getDb();
-  const result = await c.execute('DELETE FROM articles');
-  return Number(result.rowsAffected);
+  const db = getDb();
+  // Postgres requires a WHERE clause for DELETE via PostgREST. We use a
+  // tautology that matches every row regardless of its id.
+  const { error, count } = await db
+    .from(TABLE)
+    .delete({ count: 'exact' })
+    .not('id', 'is', null);
+  if (error) rethrow('Vidage de la table articles', error);
+  return Number(count || 0);
 }
