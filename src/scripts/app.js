@@ -347,13 +347,16 @@ async function onBarcodeDetected(code) {
   try {
     const { result, source, notice } = await analyzeBarcode(code);
     setFormData({ ...result, code_barres: result.code_barres || code }, 'create');
-    if (source && /openfoodfacts|openbeautyfacts|openproductsfacts/.test(source)) {
-      const labels = {
-        openfoodfacts: 'Open Food Facts',
-        openbeautyfacts: 'Open Beauty Facts',
-        openproductsfacts: 'Open Products Facts',
-      };
-      toast(`Produit identifié via ${labels[source]} (${code})`, 'success');
+    const SOURCE_LABELS = {
+      openfoodfacts:    'Open Food Facts',
+      openbeautyfacts:  'Open Beauty Facts',
+      openproductsfacts:'Open Products Facts',
+      openpetfoodfacts: 'Open Pet Food Facts',
+      openlibrary:      'Open Library',
+      upcitemdb:        'UPCitemDB',
+    };
+    if (source && SOURCE_LABELS[source]) {
+      toast(`Produit identifié via ${SOURCE_LABELS[source]} (${code})`, 'success');
     } else {
       // Unknown product or invalid checksum — show the explanatory notice
       // and let the user fill the form by hand. Better than a wrong guess.
