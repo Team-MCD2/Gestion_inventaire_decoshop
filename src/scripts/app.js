@@ -341,13 +341,24 @@ async function onBarcodeDetected(code) {
   barcodeProcessing = true;
   const overlay = $('#scanner-loading');
   const loadingLabel = $('#scanner-loading-label');
-  loadingLabel.textContent = `Code détecté: ${code} — recherche IA…`;
+  loadingLabel.textContent = `Code détecté: ${code} — recherche dans les bases publiques…`;
   overlay.classList.remove('hidden');
   await stopBarcodeScanner();
   try {
-    const analysis = await analyzeBarcode(code);
-    setFormData({ ...analysis, code_barres: analysis.code_barres || code }, 'create');
-    toast(`Code ${code} identifié`, 'success');
+    const { result, source, notice } = await analyzeBarcode(code);
+    setFormData({ ...result, code_barres: result.code_barres || code }, 'create');
+    if (source && /openfoodfacts|openbeautyfacts|openproductsfacts/.test(source)) {
+      const labels = {
+        openfoodfacts: 'Open Food Facts',
+        openbeautyfacts: 'Open Beauty Facts',
+        openproductsfacts: 'Open Products Facts',
+      };
+      toast(`Produit identifié via ${labels[source]} (${code})`, 'success');
+    } else {
+      // Unknown product or invalid checksum — show the explanatory notice
+      // and let the user fill the form by hand. Better than a wrong guess.
+      toast(notice || `Code ${code} : produit non identifié — complétez manuellement.`, 'info', 6000);
+    }
     await closeScanner();
   } catch (e) {
     toast(e.message || 'Erreur analyse code-barres', 'error');
