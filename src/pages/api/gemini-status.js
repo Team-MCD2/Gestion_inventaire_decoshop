@@ -1,5 +1,5 @@
 export const prerender = false;
-import { hasServerKey as hasGeminiKey, resolveModel } from '../../lib/gemini.js';
+import { hasServerKey as hasGeminiKey, getKeyCount, resolveModel } from '../../lib/gemini.js';
 import { hasVisionKey } from '../../lib/vision.js';
 
 export async function GET() {
@@ -9,6 +9,7 @@ export async function GET() {
       serverKey: hasGeminiKey(),
       // new fields
       geminiKey: hasGeminiKey(),
+      geminiKeyCount: getKeyCount(),
       visionKey: hasVisionKey(),
       model: resolveModel(),
     }),

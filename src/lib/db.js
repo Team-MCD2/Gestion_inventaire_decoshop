@@ -1,4 +1,4 @@
-// SQLite database layer — @libsql/client
+// SQLite database layer — @libsql/client, MCD-aligned schema
 // Uses a local file (file:./data/inventaire.db) for dev, Turso (libsql://...) in production.
 // All exported functions are async.
 import { createClient } from '@libsql/client';
@@ -25,15 +25,10 @@ function resolveDbUrl() {
   const remote = readEnv('TURSO_DATABASE_URL').trim();
   if (remote) return { url: remote, authToken: readEnv('TURSO_AUTH_TOKEN').trim() || undefined };
 
-  // Local fallback — only works when the cwd has a writable `data/` directory
-  // (i.e. running locally or on Render/Railway/Fly with a persistent disk).
-  // Vercel serverless will hit this branch and crash at write time, which is
-  // why we expect TURSO_DATABASE_URL to be set in production.
   const dataDir = path.resolve(process.cwd(), 'data');
   try {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
   } catch (e) {
-    // Read-only filesystem (e.g. Vercel) — surface a clear error
     throw new Error(
       "Impossible de créer le dossier 'data/' (système de fichiers en lecture seule ?). " +
       "Définissez TURSO_DATABASE_URL pour utiliser une base distante."
@@ -42,32 +37,71 @@ function resolveDbUrl() {
   return { url: 'file:' + path.join(dataDir, 'inventaire.db') };
 }
 
+// MCD-aligned schema (cf. mcd_mld.md §2 Articles)
 async function initSchema(c) {
-  // libsql executeMultiple supports multiple statements separated by semicolons
   await c.executeMultiple(`
     CREATE TABLE IF NOT EXISTS articles (
       id TEXT PRIMARY KEY,
-      num_article TEXT NOT NULL UNIQUE,
-      categorie TEXT NOT NULL DEFAULT '',
+      numero_article TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL DEFAULT '',
       marque TEXT NOT NULL DEFAULT '',
       modele TEXT NOT NULL DEFAULT '',
-      description TEXT NOT NULL DEFAULT '',
+      categorie TEXT NOT NULL DEFAULT '',
+      couleur TEXT NOT NULL DEFAULT '',
+      ref_couleur TEXT NOT NULL DEFAULT '',
       prix_achat REAL NOT NULL DEFAULT 0,
       prix_vente REAL NOT NULL DEFAULT 0,
-      reference TEXT NOT NULL DEFAULT '',
-      couleur TEXT NOT NULL DEFAULT '',
-      dimension TEXT NOT NULL DEFAULT '',
+      quantite INTEGER NOT NULL DEFAULT 0,
       quantite_initiale INTEGER NOT NULL DEFAULT 0,
-      quantite_actuelle INTEGER NOT NULL DEFAULT 0,
       seuil_stock_faible INTEGER NOT NULL DEFAULT ${DEFAULT_SEUIL},
-      photo TEXT NOT NULL DEFAULT '',
+      photo_url TEXT NOT NULL DEFAULT '',
+      code_barres TEXT NOT NULL DEFAULT '',
+      taille TEXT NOT NULL DEFAULT '',
+      taille_canape TEXT NOT NULL DEFAULT '',
+      shopify_product_id TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_articles_num ON articles(num_article);
+    CREATE INDEX IF NOT EXISTS idx_articles_numero ON articles(numero_article);
     CREATE INDEX IF NOT EXISTS idx_articles_categorie ON articles(categorie);
+    CREATE INDEX IF NOT EXISTS idx_articles_code_barres ON articles(code_barres);
     CREATE INDEX IF NOT EXISTS idx_articles_created ON articles(created_at);
   `);
+}
+
+// Idempotent migration : if the table existed with the old (pre-MCD) schema,
+// rename columns and add the new ones in place. Safe no-op for a fresh install.
+async function migrateSchema(c) {
+  const info = await c.execute('PRAGMA table_info(articles)');
+  if (!info.rows.length) return; // brand-new install, initSchema handles it
+  const cols = new Set(info.rows.map((r) => r.name));
+
+  const renames = [
+    ['num_article', 'numero_article'],
+    ['reference', 'code_barres'],
+    ['dimension', 'taille'],
+    ['quantite_actuelle', 'quantite'],
+    ['photo', 'photo_url'],
+  ];
+  for (const [from, to] of renames) {
+    if (cols.has(from) && !cols.has(to)) {
+      await c.execute(`ALTER TABLE articles RENAME COLUMN ${from} TO ${to}`);
+      cols.delete(from);
+      cols.add(to);
+    }
+  }
+
+  const added = [
+    ['ref_couleur',        "TEXT NOT NULL DEFAULT ''"],
+    ['taille_canape',      "TEXT NOT NULL DEFAULT ''"],
+    ['shopify_product_id', "TEXT NOT NULL DEFAULT ''"],
+  ];
+  for (const [name, type] of added) {
+    if (!cols.has(name)) {
+      await c.execute(`ALTER TABLE articles ADD COLUMN ${name} ${type}`);
+      cols.add(name);
+    }
+  }
 }
 
 async function getDb() {
@@ -77,6 +111,7 @@ async function getDb() {
       const { url, authToken } = resolveDbUrl();
       client = createClient({ url, authToken });
       await initSchema(client);
+      await migrateSchema(client);
       return client;
     })();
   }
@@ -85,7 +120,7 @@ async function getDb() {
 
 // --- Computed fields ----------------------------------------------------
 export function computeStatut(row) {
-  const q = Number(row.quantite_actuelle || 0);
+  const q = Number(row.quantite || 0);
   const seuil = Number(row.seuil_stock_faible || DEFAULT_SEUIL);
   if (q <= 0) return 'rupture';
   if (q <= seuil) return 'stock_faible';
@@ -107,8 +142,7 @@ function decorate(row) {
   };
 }
 
-// libsql returns rows as { columnName: value } already, but values may be BigInt
-// for INTEGER columns. Coerce to Number for JSON-serializability.
+// libsql may return BigInt for INTEGER columns. Coerce to Number for JSON.
 function coerceRow(row) {
   if (!row) return null;
   const out = {};
@@ -135,37 +169,50 @@ export async function getArticle(id) {
   return decorate(coerceRow(result.rows[0] || null));
 }
 
+// MCD format : DECO-YYMMDD-XXXXXX (séquence quotidienne, 6 digits)
 export async function nextNumArticle() {
+  const today = new Date();
+  const yy = String(today.getFullYear()).slice(2);
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const prefix = `DECO-${yy}${mm}${dd}-`;
+
   const c = await getDb();
-  const result = await c.execute('SELECT num_article FROM articles');
+  const result = await c.execute({
+    sql: 'SELECT numero_article FROM articles WHERE numero_article LIKE ?',
+    args: [prefix + '%'],
+  });
   const nums = result.rows
-    .map((r) => parseInt(String(r.num_article).replace(/\D/g, ''), 10))
+    .map((r) => parseInt(String(r.numero_article).slice(prefix.length), 10))
     .filter((n) => !Number.isNaN(n));
-  const max = nums.length ? Math.max(...nums) : 0;
-  return `ART-${String(max + 1).padStart(4, '0')}`;
+  const next = nums.length ? Math.max(...nums) + 1 : 1;
+  return prefix + String(next).padStart(6, '0');
 }
 
 function normalize(data, existing = null) {
   const qInit = data.quantite_initiale !== undefined && data.quantite_initiale !== ''
     ? Number(data.quantite_initiale)
     : (existing?.quantite_initiale ?? 0);
-  const qAct = data.quantite_actuelle !== undefined && data.quantite_actuelle !== ''
-    ? Number(data.quantite_actuelle)
-    : (existing?.quantite_actuelle ?? qInit);
+  const q = data.quantite !== undefined && data.quantite !== ''
+    ? Number(data.quantite)
+    : (existing?.quantite ?? qInit);
   return {
-    categorie: String(data.categorie ?? existing?.categorie ?? '').trim(),
-    marque: String(data.marque ?? existing?.marque ?? '').trim(),
-    modele: String(data.modele ?? existing?.modele ?? '').trim(),
     description: String(data.description ?? existing?.description ?? '').trim(),
-    prix_achat: Number(data.prix_achat ?? existing?.prix_achat ?? 0) || 0,
-    prix_vente: Number(data.prix_vente ?? existing?.prix_vente ?? 0) || 0,
-    reference: String(data.reference ?? existing?.reference ?? '').trim(),
-    couleur: String(data.couleur ?? existing?.couleur ?? '').trim(),
-    dimension: String(data.dimension ?? existing?.dimension ?? '').trim(),
-    quantite_initiale: Number.isFinite(qInit) ? qInit : 0,
-    quantite_actuelle: Number.isFinite(qAct) ? qAct : 0,
+    marque:      String(data.marque ?? existing?.marque ?? '').trim(),
+    modele:      String(data.modele ?? existing?.modele ?? '').trim(),
+    categorie:   String(data.categorie ?? existing?.categorie ?? '').trim(),
+    couleur:     String(data.couleur ?? existing?.couleur ?? '').trim(),
+    ref_couleur: String(data.ref_couleur ?? existing?.ref_couleur ?? '').trim(),
+    prix_achat:  Number(data.prix_achat ?? existing?.prix_achat ?? 0) || 0,
+    prix_vente:  Number(data.prix_vente ?? existing?.prix_vente ?? 0) || 0,
+    quantite:           Number.isFinite(q) ? q : 0,
+    quantite_initiale:  Number.isFinite(qInit) ? qInit : 0,
     seuil_stock_faible: Number(data.seuil_stock_faible ?? existing?.seuil_stock_faible ?? DEFAULT_SEUIL) || DEFAULT_SEUIL,
-    photo: String(data.photo ?? existing?.photo ?? ''),
+    photo_url:    String(data.photo_url ?? existing?.photo_url ?? ''),
+    code_barres:  String(data.code_barres ?? existing?.code_barres ?? '').trim(),
+    taille:       String(data.taille ?? existing?.taille ?? '').trim(),
+    taille_canape: String(data.taille_canape ?? existing?.taille_canape ?? '').trim(),
+    shopify_product_id: String(data.shopify_product_id ?? existing?.shopify_product_id ?? '').trim(),
   };
 }
 
@@ -173,25 +220,25 @@ export async function createArticle(data) {
   const c = await getDb();
   const now = Date.now();
   const id = data.id || (globalThis.crypto?.randomUUID?.() ?? String(now) + Math.random().toString(36).slice(2, 9));
-  const num_article = String(data.num_article || '').trim() || (await nextNumArticle());
+  const numero_article = String(data.numero_article || '').trim() || (await nextNumArticle());
   const fields = normalize(data);
   await c.execute({
     sql: `
       INSERT INTO articles (
-        id, num_article, categorie, marque, modele, description,
-        prix_achat, prix_vente, reference, couleur, dimension,
-        quantite_initiale, quantite_actuelle, seuil_stock_faible,
-        photo, created_at, updated_at
+        id, numero_article, description, marque, modele, categorie, couleur, ref_couleur,
+        prix_achat, prix_vente, quantite, quantite_initiale, seuil_stock_faible,
+        photo_url, code_barres, taille, taille_canape, shopify_product_id,
+        created_at, updated_at
       ) VALUES (
-        :id, :num_article, :categorie, :marque, :modele, :description,
-        :prix_achat, :prix_vente, :reference, :couleur, :dimension,
-        :quantite_initiale, :quantite_actuelle, :seuil_stock_faible,
-        :photo, :created_at, :updated_at
+        :id, :numero_article, :description, :marque, :modele, :categorie, :couleur, :ref_couleur,
+        :prix_achat, :prix_vente, :quantite, :quantite_initiale, :seuil_stock_faible,
+        :photo_url, :code_barres, :taille, :taille_canape, :shopify_product_id,
+        :created_at, :updated_at
       )
     `,
     args: {
       id,
-      num_article,
+      numero_article,
       ...fields,
       created_at: now,
       updated_at: now,
@@ -209,30 +256,33 @@ export async function updateArticle(id, data) {
   const existing = coerceRow(existingRes.rows[0] || null);
   if (!existing) return null;
   const fields = normalize(data, existing);
-  const num_article = String(data.num_article ?? existing.num_article).trim() || existing.num_article;
+  const numero_article = String(data.numero_article ?? existing.numero_article).trim() || existing.numero_article;
   await c.execute({
     sql: `
       UPDATE articles SET
-        num_article = :num_article,
-        categorie = :categorie,
+        numero_article = :numero_article,
+        description = :description,
         marque = :marque,
         modele = :modele,
-        description = :description,
+        categorie = :categorie,
+        couleur = :couleur,
+        ref_couleur = :ref_couleur,
         prix_achat = :prix_achat,
         prix_vente = :prix_vente,
-        reference = :reference,
-        couleur = :couleur,
-        dimension = :dimension,
+        quantite = :quantite,
         quantite_initiale = :quantite_initiale,
-        quantite_actuelle = :quantite_actuelle,
         seuil_stock_faible = :seuil_stock_faible,
-        photo = :photo,
+        photo_url = :photo_url,
+        code_barres = :code_barres,
+        taille = :taille,
+        taille_canape = :taille_canape,
+        shopify_product_id = :shopify_product_id,
         updated_at = :updated_at
       WHERE id = :id
     `,
     args: {
       id,
-      num_article,
+      numero_article,
       ...fields,
       updated_at: Date.now(),
     },

@@ -22,7 +22,7 @@ export async function POST({ request }) {
     const article = await createArticle(data);
     return json({ article }, 201);
   } catch (e) {
-    const msg = /UNIQUE.*num_article/i.test(e.message)
+    const msg = /UNIQUE.*numero_article/i.test(e.message)
       ? `Le numéro d'article existe déjà.`
       : e.message;
     return json({ error: msg }, 400);

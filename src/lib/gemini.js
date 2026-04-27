@@ -1,5 +1,16 @@
 // Server-side Gemini helper — called by /api/analyze/* routes
+// Supports an API key pool (GEMINI_API_KEY + GEMINI_API_KEY_1..20) with
+// automatic rotation on quota errors (429) and invalid-key errors (403),
+// plus per-key cooldown to avoid hammering rate-limited keys.
 const DEFAULT_MODEL = 'gemini-2.5-flash';
+const MAX_INDEXED_KEYS = 20;
+const COOLDOWN_QUOTA_MS = 60 * 1000;          // 1 min after a 429
+const COOLDOWN_INVALID_MS = 60 * 60 * 1000;   // 1 h after a 403/invalid
+
+// Module-level state — survives across requests in the same Node instance.
+// Resets on cold start (Vercel serverless), which is fine: cooldowns are advisory.
+let keyCursor = 0;
+const keyCooldowns = new Map(); // apiKey -> epoch ms when usable again
 
 // Astro/Vite expose .env via import.meta.env. Fallback to process.env for build/runtime.
 function readEnv(name) {
@@ -11,31 +22,60 @@ function readEnv(name) {
   return p !== undefined && p !== null ? String(p) : '';
 }
 
+// Read all configured keys from the environment, in priority order, deduped.
+// Order: GEMINI_API_KEY (legacy) -> GEMINI_API_KEY_1 -> ... -> GEMINI_API_KEY_20
+function readApiKeys() {
+  const keys = [];
+  const main = readEnv('GEMINI_API_KEY').trim();
+  if (main) keys.push(main);
+  for (let i = 1; i <= MAX_INDEXED_KEYS; i++) {
+    const k = readEnv(`GEMINI_API_KEY_${i}`).trim();
+    if (k) keys.push(k);
+  }
+  return [...new Set(keys)];
+}
+
+export function getKeyCount() {
+  return readApiKeys().length;
+}
+
+// Aligned on the MCD article schema (cf. mcd_mld.md §2)
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    categorie: { type: 'STRING' },
-    marque: { type: 'STRING' },
-    modele: { type: 'STRING' },
-    description: { type: 'STRING' },
-    reference: { type: 'STRING' },
-    couleur: { type: 'STRING' },
-    dimension: { type: 'STRING' },
-    prix_achat: { type: 'NUMBER' },
-    prix_vente: { type: 'NUMBER' },
+    categorie:    { type: 'STRING' },
+    marque:       { type: 'STRING' },
+    modele:       { type: 'STRING' },
+    description:  { type: 'STRING' },
+    code_barres:  { type: 'STRING' },
+    couleur:      { type: 'STRING' },
+    ref_couleur:  { type: 'STRING' },
+    taille:       { type: 'STRING' },
+    taille_canape:{ type: 'STRING' },
+    prix_achat:   { type: 'NUMBER' },
+    prix_vente:   { type: 'NUMBER' },
   },
 };
 
 export function hasServerKey() {
-  return !!readEnv('GEMINI_API_KEY').trim();
+  return readApiKeys().length > 0;
 }
 
-export function resolveKey(overrideKey) {
+// Returns the list of keys to try (in order). If a per-request override key
+// is provided (e.g. from a browser header), it is used exclusively without rotation.
+export function resolveKeys(overrideKey) {
   const k = (overrideKey || '').trim();
-  if (k) return k;
-  const envKey = readEnv('GEMINI_API_KEY').trim();
-  if (envKey) return envKey;
-  throw new Error("Aucune clé Gemini configurée (ni serveur ni navigateur).");
+  if (k) return [k];
+  const keys = readApiKeys();
+  if (!keys.length) {
+    throw new Error("Aucune clé Gemini configurée. Ajoutez GEMINI_API_KEY ou GEMINI_API_KEY_1..20 dans .env");
+  }
+  return keys;
+}
+
+// Backwards-compatible single-key resolver (kept for any external caller).
+export function resolveKey(overrideKey) {
+  return resolveKeys(overrideKey)[0];
 }
 
 export function resolveModel(overrideModel) {
@@ -48,10 +88,10 @@ function friendlyGeminiError(status, body) {
     return "Clé Gemini révoquée par Google (signalée comme exposée). Créez-en une nouvelle sur aistudio.google.com/app/apikey.";
   }
   if (status === 403 || /API_KEY_INVALID|API key not valid/i.test(msg)) {
-    return "Clé Gemini invalide ou non autorisée. Vérifiez la clé dans .env ou Paramètres.";
+    return "Clé Gemini invalide ou non autorisée. Vérifiez la clé dans .env.";
   }
   if (status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(msg)) {
-    return "Quota Gemini dépassé. Attendez quelques minutes ou changez de clé.";
+    return "Quota Gemini dépassé sur toutes les clés. Attendez quelques minutes ou ajoutez d'autres clés.";
   }
   if (status === 400 && /SAFETY|blocked/i.test(msg)) {
     return "Image bloquée par les filtres de sécurité Gemini.";
@@ -59,7 +99,24 @@ function friendlyGeminiError(status, body) {
   return msg ? `Gemini: ${msg.slice(0, 200)}` : `Gemini erreur ${status}`;
 }
 
-async function callGemini({ parts, apiKey, model }) {
+function isQuotaError(status, msg = '') {
+  return status === 429 || /quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(msg);
+}
+function isInvalidKeyError(status, msg = '') {
+  return (status === 403 || status === 400)
+    && /API_KEY_INVALID|API key not valid|leaked|disabled|permission/i.test(msg);
+}
+
+// Mask a key for logs: show only first 4 + last 4 chars.
+function maskKey(k) {
+  if (!k) return '(empty)';
+  if (k.length <= 10) return '****';
+  return `${k.slice(0, 4)}…${k.slice(-4)}`;
+}
+
+// Single attempt against one key. Throws an Error annotated with `.status`
+// and `.geminiMessage` so the caller can decide whether to rotate.
+async function callGeminiOnce({ parts, apiKey, model }) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const body = {
     contents: [{ parts }],
@@ -77,13 +134,80 @@ async function callGemini({ parts, apiKey, model }) {
   if (!res.ok) {
     let parsed = null;
     try { parsed = await res.json(); } catch {}
-    throw new Error(friendlyGeminiError(res.status, parsed));
+    const err = new Error(friendlyGeminiError(res.status, parsed));
+    err.status = res.status;
+    err.geminiMessage = parsed?.error?.message || '';
+    throw err;
   }
   const json = await res.json();
   const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Réponse Gemini vide ou bloquée.');
   try { return JSON.parse(text); }
   catch { throw new Error('Réponse Gemini non-JSON : ' + text.slice(0, 200)); }
+}
+
+// Rotation logic: try keys in round-robin order, skip those in cooldown,
+// and rotate to the next one on 429 / 403-invalid. Other errors (image
+// rejected, network, malformed response) are not retried — they would
+// fail on every key anyway.
+async function callGemini({ parts, apiKeys, model }) {
+  const total = apiKeys.length;
+  if (total === 0) throw new Error("Aucune clé Gemini disponible.");
+  const now = Date.now();
+
+  // Build try-order starting at the rotating cursor.
+  const order = [];
+  for (let i = 0; i < total; i++) {
+    order.push(apiKeys[(keyCursor + i) % total]);
+  }
+
+  let lastError = null;
+  let attempted = 0;
+  for (const key of order) {
+    const cd = keyCooldowns.get(key);
+    if (cd && cd > now) continue; // skip — still cooling down
+    attempted++;
+    try {
+      const result = await callGeminiOnce({ parts, apiKey: key, model });
+      // Success: advance cursor so the next request starts on the next key.
+      keyCursor = (apiKeys.indexOf(key) + 1) % total;
+      keyCooldowns.delete(key); // recovery
+      return result;
+    } catch (e) {
+      lastError = e;
+      const status = e.status;
+      const msg = e.geminiMessage || e.message || '';
+      if (isQuotaError(status, msg)) {
+        keyCooldowns.set(key, Date.now() + COOLDOWN_QUOTA_MS);
+        if (total > 1) console.warn(`[gemini] key ${maskKey(key)} rate-limited, rotating to next key`);
+        continue;
+      }
+      if (isInvalidKeyError(status, msg)) {
+        keyCooldowns.set(key, Date.now() + COOLDOWN_INVALID_MS);
+        console.warn(`[gemini] key ${maskKey(key)} invalid/disabled, skipping for 1h`);
+        continue;
+      }
+      // Non-rotatable error — surface immediately.
+      throw e;
+    }
+  }
+
+  // Every key was either in cooldown or just got rate-limited.
+  // As a last resort, retry the cooled-down keys ordered by soonest expiry.
+  if (attempted === 0) {
+    const sorted = [...apiKeys].sort(
+      (a, b) => (keyCooldowns.get(a) || 0) - (keyCooldowns.get(b) || 0)
+    );
+    for (const key of sorted) {
+      try {
+        const result = await callGeminiOnce({ parts, apiKey: key, model });
+        keyCooldowns.delete(key);
+        return result;
+      } catch (e) { lastError = e; }
+    }
+  }
+
+  throw lastError || new Error('Toutes les clés Gemini sont indisponibles. Réessayez plus tard.');
 }
 
 export async function analyzeImage({ base64DataUrl, apiKey, model }) {
@@ -98,9 +222,11 @@ Analyse la photo fournie et renvoie un JSON strict conforme au schéma:
 - marque: nom de la marque visible ou reconnaissable ("" si inconnue)
 - modele: nom/référence du modèle ("" si inconnu)
 - description: description courte et précise en français (1 à 2 phrases : matériaux, style, usage)
-- reference: code produit / référence interne si visible sur l'étiquette ("" si absent)
-- couleur: couleur(s) principale(s) de l'article (ex: "Noir", "Blanc/Bois", "Rouge")
-- dimension: dimensions si visibles ou estimables (ex: "L120 x l60 x H75 cm" ou "Ø30 cm"), sinon ""
+- code_barres: code-barres EAN/UPC/GTIN visible sur l'étiquette (uniquement chiffres, "" si absent)
+- couleur: nom de la couleur principale en français (ex: "Bleu nuit", "Bordeaux", "Bois clair")
+- ref_couleur: référence numérique de la couleur si imprimée sur l'étiquette (ex: "020", "035"), "" si absente
+- taille: dimensions ou taille (ex: "L120 x l60 x H75 cm", "Ø30 cm", ou pour la literie "90x190", "140x190"), "" si inconnu
+- taille_canape: pour un canapé uniquement, parmi ("1 place", "2 places", "3 places", "Angle", "Méridienne"), sinon ""
 - prix_achat: prix d'achat grossiste estimé en EUR (nombre ; 0 si inconnu)
 - prix_vente: prix de vente public conseillé estimé en EUR (nombre ; 0 si inconnu)
 
@@ -111,7 +237,7 @@ Réponds STRICTEMENT en JSON conforme au schéma, sans commentaire ni markdown.`
       { text: prompt },
       { inline_data: { mime_type: mimeType, data } },
     ],
-    apiKey: resolveKey(apiKey),
+    apiKeys: resolveKeys(apiKey),
     model: resolveModel(model),
   });
 }
@@ -124,18 +250,20 @@ On a scanné le code-barres: "${code}".
 Identifie le produit au mieux de ta connaissance et renvoie un JSON strict:
 - categorie: (Mobilier, Luminaire, Textile, Décoration murale, Vaisselle, Électroménager, Jardin, Rangement, Jouet, Électronique, Autre)
 - marque, modele, description (français, concis)
-- reference: "${code}" (garde le code-barres comme référence)
-- couleur, dimension (si connues)
+- code_barres: "${code}" (garde le code scanné tel quel)
+- couleur, ref_couleur (si connues)
+- taille (ex: "90x190" pour literie, "L120 x H75 cm" pour mobilier)
+- taille_canape (si canapé : "1 place", "2 places", "3 places", "Angle", "Méridienne", sinon "")
 - prix_achat: prix d'achat estimé EUR (0 si inconnu)
 - prix_vente: prix de vente public estimé EUR (0 si inconnu)
 
 Si le produit est totalement inconnu, renvoie chaînes vides et 0 pour les nombres,
-mais CONSERVE reference = "${code}".
+mais CONSERVE code_barres = "${code}".
 Réponds uniquement en JSON conforme au schéma.`;
 
   return callGemini({
     parts: [{ text: prompt }],
-    apiKey: resolveKey(apiKey),
+    apiKeys: resolveKeys(apiKey),
     model: resolveModel(model),
   });
 }

@@ -58,16 +58,19 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
   }
 
   // Start with Gemini's structured result (or empty defaults if Vision-only)
+  // Field names aligned on MCD (cf. mcd_mld.md §2 articles)
   const merged = {
-    categorie:   geminiResult?.categorie   ?? '',
-    marque:      geminiResult?.marque      ?? '',
-    modele:      geminiResult?.modele      ?? '',
-    description: geminiResult?.description ?? '',
-    reference:   geminiResult?.reference   ?? '',
-    couleur:     geminiResult?.couleur     ?? '',
-    dimension:   geminiResult?.dimension   ?? '',
-    prix_achat:  Number(geminiResult?.prix_achat) || 0,
-    prix_vente:  Number(geminiResult?.prix_vente) || 0,
+    categorie:     geminiResult?.categorie     ?? '',
+    marque:        geminiResult?.marque        ?? '',
+    modele:        geminiResult?.modele        ?? '',
+    description:   geminiResult?.description   ?? '',
+    code_barres:   geminiResult?.code_barres   ?? '',
+    couleur:       geminiResult?.couleur       ?? '',
+    ref_couleur:   geminiResult?.ref_couleur   ?? '',
+    taille:        geminiResult?.taille        ?? '',
+    taille_canape: geminiResult?.taille_canape ?? '',
+    prix_achat:    Number(geminiResult?.prix_achat) || 0,
+    prix_vente:    Number(geminiResult?.prix_vente) || 0,
   };
 
   let visionExtract = null;
@@ -83,14 +86,14 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
       }
     }
 
-    // reference : OCR EAN/UPC est très fiable → écrase sauf si Gemini a déjà un code numérique
-    if (visionExtract.reference) {
-      const geminiRefIsNumeric = /^\d{8,14}$/.test(merged.reference || '');
-      if (!geminiRefIsNumeric) merged.reference = visionExtract.reference;
+    // code_barres : OCR EAN/UPC est très fiable → écrase sauf si Gemini a déjà un code numérique
+    if (visionExtract.code_barres) {
+      const geminiCodeIsNumeric = /^\d{8,14}$/.test(merged.code_barres || '');
+      if (!geminiCodeIsNumeric) merged.code_barres = visionExtract.code_barres;
     }
 
-    // dimension : OCR plus fiable que Gemini-estimation → écrase si trouvé
-    if (visionExtract.dimension) merged.dimension = visionExtract.dimension;
+    // taille : OCR plus fiable que Gemini-estimation → écrase si trouvé
+    if (visionExtract.taille) merged.taille = visionExtract.taille;
 
     // prix_vente : OCR du prix sur l'étiquette = prix réel → écrase l'estimation
     if (visionExtract.detectedPrice > 0) merged.prix_vente = visionExtract.detectedPrice;

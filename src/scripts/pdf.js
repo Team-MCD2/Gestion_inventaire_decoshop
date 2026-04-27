@@ -3,8 +3,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const HEADERS = [
-  'N°', 'Cat.', 'Marque', 'Modèle', 'Réf.', 'Couleur',
-  'Dim.', 'P. achat', 'P. vente', 'Marge', 'Qté init', 'Qté act.', 'Statut',
+  'N°', 'Cat.', 'Marque', 'Modèle', 'Code-barres', 'Couleur',
+  'Taille', 'P. achat', 'P. vente', 'Marge', 'Qté init', 'Qté', 'Statut',
 ];
 
 const STATUT_LABELS = {
@@ -42,26 +42,26 @@ export function downloadPDF(articles) {
     doc.internal.pageSize.getWidth() - 40, 28, { align: 'right' });
 
   // Totals
-  const totalAchat = articles.reduce((s, a) => s + (Number(a.prix_achat) || 0) * (Number(a.quantite_actuelle) || 0), 0);
-  const totalVente = articles.reduce((s, a) => s + (Number(a.prix_vente) || 0) * (Number(a.quantite_actuelle) || 0), 0);
+  const totalAchat = articles.reduce((s, a) => s + (Number(a.prix_achat) || 0) * (Number(a.quantite) || 0), 0);
+  const totalVente = articles.reduce((s, a) => s + (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0), 0);
   doc.text(
     `Valeur stock — achat: ${totalAchat.toFixed(2)} €  ·  vente: ${totalVente.toFixed(2)} €  ·  marge potentielle: ${(totalVente - totalAchat).toFixed(2)} €`,
     doc.internal.pageSize.getWidth() - 40, 44, { align: 'right' }
   );
 
   const rows = articles.map((a) => [
-    a.num_article || '',
+    a.numero_article || '',
     a.categorie || '',
     a.marque || '',
     a.modele || '',
-    a.reference || '',
+    a.code_barres || '',
     a.couleur || '',
-    a.dimension || '',
+    a.taille || '',
     fmt(Number(a.prix_achat)),
     fmt(Number(a.prix_vente)),
     fmt(Number(a.marge)),
     String(a.quantite_initiale ?? ''),
-    String(a.quantite_actuelle ?? ''),
+    String(a.quantite ?? ''),
     STATUT_LABELS[a.statut] || '',
   ]);
 

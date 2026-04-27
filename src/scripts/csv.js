@@ -1,19 +1,22 @@
-// CSV export — nouveaux champs
+// CSV export — alignement schema MCD (cf. mcd_mld.md §2)
 const HEADERS = [
-  { key: 'num_article',       label: 'Num article' },
-  { key: 'categorie',         label: 'Categorie' },
-  { key: 'marque',            label: 'Marque' },
-  { key: 'modele',            label: 'Modele' },
-  { key: 'description',       label: 'Description' },
-  { key: 'prix_achat',        label: 'Prix achat' },
-  { key: 'prix_vente',        label: 'Prix vente' },
-  { key: 'marge',             label: 'Marge' },
-  { key: 'reference',         label: 'Reference' },
-  { key: 'couleur',           label: 'Couleur' },
-  { key: 'dimension',         label: 'Dimension' },
-  { key: 'quantite_initiale', label: 'Quantite initiale' },
-  { key: 'quantite_actuelle', label: 'Quantite actuelle' },
-  { key: 'statut',            label: 'Statut' },
+  { key: 'numero_article',     label: 'Numero article' },
+  { key: 'categorie',          label: 'Categorie' },
+  { key: 'marque',             label: 'Marque' },
+  { key: 'modele',             label: 'Modele' },
+  { key: 'description',        label: 'Description' },
+  { key: 'prix_achat',         label: 'Prix achat' },
+  { key: 'prix_vente',         label: 'Prix vente' },
+  { key: 'marge',              label: 'Marge' },
+  { key: 'code_barres',        label: 'Code-barres' },
+  { key: 'couleur',            label: 'Couleur' },
+  { key: 'ref_couleur',        label: 'Ref couleur' },
+  { key: 'taille',             label: 'Taille' },
+  { key: 'taille_canape',      label: 'Taille canape' },
+  { key: 'quantite_initiale',  label: 'Quantite initiale' },
+  { key: 'quantite',           label: 'Quantite' },
+  { key: 'statut',             label: 'Statut' },
+  { key: 'shopify_product_id', label: 'Shopify product ID' },
 ];
 
 const STATUT_LABELS = {

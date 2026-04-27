@@ -4,7 +4,7 @@ import {
   createArticle, updateArticle, deleteArticle,
   clearAll, getNextNumArticle,
 } from './state.js';
-import { startCamera, stopCamera, captureFrame } from './camera.js';
+import { startCamera, stopCamera, captureFrame, fileToImageDataUrl } from './camera.js';
 import { startBarcodeScanner, stopBarcodeScanner } from './barcode.js';
 import { analyzeImage, analyzeBarcode } from './gemini.js';
 import { downloadCSV } from './csv.js';
@@ -12,12 +12,14 @@ import { downloadPDF } from './pdf.js';
 
 const $  = (sel, root = document) => root.querySelector(sel);
 
+// Field names match the MCD schema (cf. mcd_mld.md §2 articles)
 const TEXT_FIELDS = [
-  'num_article', 'categorie', 'marque', 'modele', 'description',
-  'reference', 'couleur', 'dimension',
+  'numero_article', 'categorie', 'marque', 'modele', 'description',
+  'code_barres', 'couleur', 'ref_couleur', 'taille', 'taille_canape',
+  'shopify_product_id',
 ];
 const NUMBER_FIELDS = [
-  'prix_achat', 'prix_vente', 'quantite_initiale', 'quantite_actuelle',
+  'prix_achat', 'prix_vente', 'quantite_initiale', 'quantite',
 ];
 const FIELDS = [...TEXT_FIELDS, ...NUMBER_FIELDS];
 
@@ -59,7 +61,7 @@ function getFormData(mode = 'create') {
     }
     out[k] = v;
   });
-  out.photo = $(cfg.photo).dataset.src || '';
+  out.photo_url = $(cfg.photo).dataset.src || '';
   return out;
 }
 
@@ -78,7 +80,8 @@ function setFormData(data, mode = 'create') {
       el.value = data[k];
     }
   });
-  if (data.photo) setPhoto(data.photo, mode);
+  const photo = data.photo_url || data.photo;
+  if (photo) setPhoto(photo, mode);
   else if (mode === 'edit') clearPhoto(mode);
   updateMarge(mode);
   updateStatutPreview(mode);
@@ -104,14 +107,14 @@ function updateStatutPreview(mode = 'create') {
   const cfg = FORMS[mode];
   const form = $(cfg.form);
   if (!form) return;
-  const qActRaw = form.elements.namedItem('quantite_actuelle')?.value;
+  const qRaw = form.elements.namedItem('quantite')?.value;
   const target = $(cfg.statut);
   if (!target) return;
-  if (qActRaw === '' || qActRaw === null || qActRaw === undefined) {
+  if (qRaw === '' || qRaw === null || qRaw === undefined) {
     target.innerHTML = '';
     return;
   }
-  const q = Number(qActRaw);
+  const q = Number(qRaw);
   const seuil = 5;
   const s = q <= 0 ? 'rupture' : (q <= seuil ? 'stock_faible' : 'en_stock');
   target.innerHTML = renderStatusBadge(s);
@@ -143,14 +146,14 @@ async function clearForm() {
   form.reset();
   clearPhoto('create');
   form.elements.namedItem('quantite_initiale').value = 1;
-  form.elements.namedItem('quantite_actuelle').value = 1;
-  delete form.elements.namedItem('quantite_actuelle').dataset.touched;
+  form.elements.namedItem('quantite').value = 1;
+  delete form.elements.namedItem('quantite').dataset.touched;
   updateMarge('create');
   updateStatutPreview('create');
   // Fetch next num async
   const num = await getNextNumArticle();
   if (num) {
-    const el = form.elements.namedItem('num_article');
+    const el = form.elements.namedItem('numero_article');
     if (el && !el.value) el.value = num;
   }
 }
@@ -161,11 +164,11 @@ function openEditModal(article) {
   editingArticleId = article.id;
   // Populate fields
   setFormData(article, 'edit');
-  // Mark qty actuelle as 'touched' so we don't auto-overwrite it from qty initiale
-  const qAct = $('#edit-form').elements.namedItem('quantite_actuelle');
-  if (qAct) qAct.dataset.touched = '1';
-  // Update title with num_article
-  $('#edit-modal-num').textContent = article.num_article || '—';
+  // Mark qty as 'touched' so we don't auto-overwrite from qty initiale
+  const q = $('#edit-form').elements.namedItem('quantite');
+  if (q) q.dataset.touched = '1';
+  // Update title with numero_article
+  $('#edit-modal-num').textContent = article.numero_article || '—';
   // Show modal
   const modal = $('#edit-modal');
   modal.classList.remove('hidden');
@@ -182,7 +185,9 @@ function closeEditModal() {
 }
 
 // ---------- Toast ----------
-function toast(msg, type = 'info') {
+// Returns a handle with `update(msg)` and `dismiss()`.
+// Pass duration=0 to keep the toast on screen until dismiss() is called.
+function toast(msg, type = 'info', duration = 3600) {
   const host = $('#toast-host');
   const el = document.createElement('div');
   const base = 'px-4 py-3 rounded-xl shadow-lg text-sm font-medium max-w-sm flex items-start gap-2 pointer-events-auto';
@@ -194,12 +199,23 @@ function toast(msg, type = 'info') {
   el.textContent = msg;
   host.appendChild(el);
   requestAnimationFrame(() => el.classList.add('toast-enter-active'));
-  setTimeout(() => {
+
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
     el.style.transition = 'all 300ms ease';
     el.style.opacity = '0';
     el.style.transform = 'translateY(-10px)';
     setTimeout(() => el.remove(), 320);
-  }, 3600);
+  };
+  let timer = null;
+  if (duration > 0) timer = setTimeout(dismiss, duration);
+
+  return {
+    update(newMsg) { if (!dismissed) el.textContent = newMsg; },
+    dismiss() { if (timer) clearTimeout(timer); dismiss(); },
+  };
 }
 
 // ---------- Scanner ----------
@@ -268,13 +284,54 @@ async function captureAndAnalyze() {
     await stopCamera();
     loadingLabel.textContent = 'Analyse IA en cours…';
     const analysis = await analyzeImage(dataUrl);
-    setFormData({ ...analysis, photo: dataUrl }, 'create');
+    setFormData({ ...analysis, photo_url: dataUrl }, 'create');
     toast('Article analysé avec succès', 'success');
     await closeScanner();
   } catch (e) {
     toast(e.message || 'Erreur d\'analyse', 'error');
     overlay.classList.add('hidden');
     try { await startCamera(video); } catch {}
+  }
+}
+
+// Upload from disk: convert to data URL, run AI analysis, then prefill the form.
+let uploadProcessing = false;
+async function handlePhotoUpload(file) {
+  if (uploadProcessing) return;
+  if (!file) return;
+  uploadProcessing = true;
+  const btn = $('#btn-upload-photo');
+  if (btn) btn.classList.add('opacity-60', 'pointer-events-none');
+  const pendingToast = toast('Lecture de la photo…', 'info', 0);
+  try {
+    const dataUrl = await fileToImageDataUrl(file);
+    setPhoto(dataUrl, 'create');
+    pendingToast.update?.('Analyse IA en cours…');
+    const analysis = await analyzeImage(dataUrl);
+    setFormData({ ...analysis, photo_url: dataUrl }, 'create');
+    toast('Photo analysée avec succès', 'success');
+  } catch (e) {
+    toast(e.message || 'Erreur lors de l\'analyse', 'error');
+  } finally {
+    pendingToast.dismiss?.();
+    if (btn) btn.classList.remove('opacity-60', 'pointer-events-none');
+    uploadProcessing = false;
+  }
+}
+
+// Replace photo in the edit modal (no AI, just swap the image).
+async function handleEditPhotoUpload(file) {
+  if (!file) return;
+  const btn = $('#btn-edit-replace-photo');
+  if (btn) btn.classList.add('opacity-60', 'pointer-events-none');
+  try {
+    const dataUrl = await fileToImageDataUrl(file);
+    setPhoto(dataUrl, 'edit');
+    toast('Photo remplacée', 'success');
+  } catch (e) {
+    toast(e.message || 'Erreur lors du chargement', 'error');
+  } finally {
+    if (btn) btn.classList.remove('opacity-60', 'pointer-events-none');
   }
 }
 
@@ -289,7 +346,7 @@ async function onBarcodeDetected(code) {
   await stopBarcodeScanner();
   try {
     const analysis = await analyzeBarcode(code);
-    setFormData({ ...analysis, reference: analysis.reference || code }, 'create');
+    setFormData({ ...analysis, code_barres: analysis.code_barres || code }, 'create');
     toast(`Code ${code} identifié`, 'success');
     await closeScanner();
   } catch (e) {
@@ -356,9 +413,9 @@ function renderTable() {
 
   tbody.innerHTML = articles.map((a) => `
     <tr class="hover:bg-slate-50 transition" data-id="${a.id}">
-      <td class="px-3 py-2 whitespace-nowrap font-mono text-xs font-semibold text-slate-800">${escapeHtml(a.num_article || '')}</td>
-      <td class="px-3 py-2">${a.photo
-        ? `<img src="${a.photo}" class="h-12 w-12 object-cover rounded-md ring-1 ring-slate-200" alt="" />`
+      <td class="px-3 py-2 whitespace-nowrap font-mono text-xs font-semibold text-slate-800">${escapeHtml(a.numero_article || '')}</td>
+      <td class="px-3 py-2">${a.photo_url
+        ? `<img src="${a.photo_url}" class="h-12 w-12 object-cover rounded-md ring-1 ring-slate-200" alt="" />`
         : '<span class="inline-flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-slate-300 text-xs">—</span>'}</td>
       <td class="px-3 py-2"><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(a.categorie || '—')}</span></td>
       <td class="px-3 py-2">${escapeHtml(a.marque || '')}</td>
@@ -367,11 +424,13 @@ function renderTable() {
       <td class="px-3 py-2 text-right tabular-nums">${fmtPrice(a.prix_achat)}</td>
       <td class="px-3 py-2 text-right tabular-nums">${fmtPrice(a.prix_vente)}</td>
       <td class="px-3 py-2 text-right tabular-nums font-semibold ${a.marge > 0 ? 'text-emerald-600' : a.marge < 0 ? 'text-red-600' : 'text-slate-500'}">${fmtPrice(a.marge)}</td>
-      <td class="px-3 py-2 font-mono text-xs">${escapeHtml(a.reference || '')}</td>
+      <td class="px-3 py-2 font-mono text-xs">${escapeHtml(a.code_barres || '')}</td>
       <td class="px-3 py-2">${escapeHtml(a.couleur || '')}</td>
-      <td class="px-3 py-2 whitespace-nowrap text-xs">${escapeHtml(a.dimension || '')}</td>
+      <td class="px-3 py-2 font-mono text-xs">${escapeHtml(a.ref_couleur || '')}</td>
+      <td class="px-3 py-2 whitespace-nowrap text-xs">${escapeHtml(a.taille || '')}</td>
+      <td class="px-3 py-2 whitespace-nowrap text-xs">${escapeHtml(a.taille_canape || '')}</td>
       <td class="px-3 py-2 text-right tabular-nums">${a.quantite_initiale ?? ''}</td>
-      <td class="px-3 py-2 text-right tabular-nums font-semibold">${a.quantite_actuelle ?? ''}</td>
+      <td class="px-3 py-2 text-right tabular-nums font-semibold">${a.quantite ?? ''}</td>
       <td class="px-3 py-2 whitespace-nowrap">${renderStatusBadge(a.statut)}</td>
       <td class="px-3 py-2 text-right whitespace-nowrap">
         <button data-action="edit" data-id="${a.id}" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold mr-2">Éditer</button>
@@ -388,6 +447,24 @@ function wireEvents() {
   $('#btn-close-scanner').addEventListener('click', closeScanner);
   $('#btn-capture').addEventListener('click', captureAndAnalyze);
   $('#btn-switch-mode').addEventListener('click', switchMode);
+
+  // Upload photo (create form) — opens OS file picker, then runs AI analysis
+  const uploadInput = $('#photo-upload-input');
+  $('#btn-upload-photo').addEventListener('click', () => uploadInput.click());
+  uploadInput.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    await handlePhotoUpload(file);
+  });
+
+  // Replace photo (edit modal) — opens OS file picker, no AI analysis
+  const editUploadInput = $('#edit-photo-upload-input');
+  $('#btn-edit-replace-photo').addEventListener('click', () => editUploadInput.click());
+  editUploadInput.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    await handleEditPhotoUpload(file);
+  });
   $('#scanner-backdrop').addEventListener('click', closeScanner);
 
   // Photo click to remove (create form)
@@ -404,15 +481,15 @@ function wireEvents() {
   form.elements.namedItem('prix_achat').addEventListener('input', () => updateMarge('create'));
   form.elements.namedItem('prix_vente').addEventListener('input', () => updateMarge('create'));
 
-  // Sync quantite_initiale → quantite_actuelle on create (as long as user hasn't touched actuelle)
+  // Sync quantite_initiale → quantite on create (as long as user hasn't touched quantite)
   const qInit = form.elements.namedItem('quantite_initiale');
-  const qAct = form.elements.namedItem('quantite_actuelle');
+  const q = form.elements.namedItem('quantite');
   qInit.addEventListener('input', () => {
-    if (!qAct.dataset.touched) qAct.value = qInit.value;
+    if (!q.dataset.touched) q.value = qInit.value;
     updateStatutPreview('create');
   });
-  qAct.addEventListener('input', () => {
-    qAct.dataset.touched = '1';
+  q.addEventListener('input', () => {
+    q.dataset.touched = '1';
     updateStatutPreview('create');
   });
 
@@ -436,7 +513,7 @@ function wireEvents() {
 
   $('#btn-clear').addEventListener('click', async () => {
     const d = getFormData('create');
-    const dirty = d.marque || d.modele || d.description || d.photo;
+    const dirty = d.marque || d.modele || d.description || d.photo_url;
     if (dirty && !confirm('Effacer le formulaire ?')) return;
     await clearForm();
   });
@@ -472,7 +549,7 @@ function wireEvents() {
   editForm.elements.namedItem('prix_achat').addEventListener('input', () => updateMarge('edit'));
   editForm.elements.namedItem('prix_vente').addEventListener('input', () => updateMarge('edit'));
   // Auto-recalc statut in edit modal
-  editForm.elements.namedItem('quantite_actuelle').addEventListener('input', () => updateStatutPreview('edit'));
+  editForm.elements.namedItem('quantite').addEventListener('input', () => updateStatutPreview('edit'));
   editForm.elements.namedItem('quantite_initiale').addEventListener('input', () => updateStatutPreview('edit'));
 
   // Photo preview click in edit modal -> remove photo

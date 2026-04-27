@@ -150,8 +150,8 @@ function rgbToFrenchColor({ r, g, b }) {
 export function extractFromVision(v) {
   const out = {
     marque: '',
-    reference: '',
-    dimension: '',
+    code_barres: '',
+    taille: '',
     couleur: '',
     detectedPrice: 0,
     fallbackCategorie: '',
@@ -168,13 +168,13 @@ export function extractFromVision(v) {
   // OCR
   const text = v.text || '';
   const eanMatch = text.match(EAN_REGEX);
-  if (eanMatch) out.reference = eanMatch[1];
+  if (eanMatch) out.code_barres = eanMatch[1];
 
   const dimMatch = text.match(DIM_REGEX);
-  if (dimMatch) out.dimension = dimMatch[0].replace(/\s+/g, ' ').trim();
+  if (dimMatch) out.taille = dimMatch[0].replace(/\s+/g, ' ').trim();
   else {
     const diamMatch = text.match(DIAM_REGEX);
-    if (diamMatch) out.dimension = diamMatch[0].replace(/\s+/g, ' ').trim();
+    if (diamMatch) out.taille = diamMatch[0].replace(/\s+/g, ' ').trim();
   }
 
   const priceMatch = text.match(PRICE_REGEX);
