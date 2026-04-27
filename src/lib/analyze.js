@@ -1,8 +1,61 @@
-// Orchestrator: runs Gemini + Vision in parallel and merges into a single article
+// Orchestrator: runs Vision (OCR/logo) in parallel with a vision LLM, then merges.
+// The vision LLM is selected via a fallback chain — Gemini → Groq → Mistral.
+// We try the next provider only when the previous one is fully exhausted (all
+// keys cooldowned or quota errors). Other errors (image rejected, malformed
+// JSON…) propagate immediately since they would happen on every provider too.
 import { analyzeImage as geminiAnalyzeImage, hasServerKey as hasGeminiServerKey } from './gemini.js';
+import { analyzeImageGroq,    hasGroqKey }    from './groq.js';
+import { analyzeImageMistral, hasMistralKey } from './mistral.js';
 import { visionAnnotate, extractFromVision, hasVisionKey } from './vision.js';
 
 const LOGO_OVERRIDE_THRESHOLD = 0.7;
+
+// Errors that mean "this provider is exhausted, try the next one"
+function isExhaustionError(e) {
+  const msg = (e && (e.message || String(e))) || '';
+  return /quota|rate.?limit|toutes les cl(é|e)s|aucune cl(é|e)/i.test(msg)
+      || e?.status === 429
+      || (e?.status === 403 && /quota|disabled|invalid/i.test(msg));
+}
+
+// Try each available LLM in order; return on first success, fall through on
+// quota/exhaustion errors only. Returns { result, source } or throws the last error.
+async function tryVisionLLMs({ base64DataUrl, geminiKey, model }) {
+  const chain = [];
+  if (geminiKey || hasGeminiServerKey()) {
+    chain.push({ name: 'gemini', fn: () => geminiAnalyzeImage({ base64DataUrl, apiKey: geminiKey, model }) });
+  }
+  if (hasGroqKey()) {
+    chain.push({ name: 'groq', fn: () => analyzeImageGroq({ base64DataUrl }) });
+  }
+  if (hasMistralKey()) {
+    chain.push({ name: 'mistral', fn: () => analyzeImageMistral({ base64DataUrl }) });
+  }
+  if (chain.length === 0) {
+    throw new Error('Aucun fournisseur LLM vision configuré (Gemini / Groq / Mistral).');
+  }
+
+  let lastError = null;
+  for (let i = 0; i < chain.length; i++) {
+    const { name, fn } = chain[i];
+    const isLast = i === chain.length - 1;
+    try {
+      const result = await fn();
+      return { result, source: name };
+    } catch (e) {
+      lastError = e;
+      if (isLast) throw e;
+      if (isExhaustionError(e)) {
+        console.warn(`[vision-chain] ${name} exhausted (${e.message || e}), falling back to ${chain[i + 1].name}`);
+      } else {
+        // Non-quota error on an earlier provider — also try next, but this
+        // could be a real defect (image too large, blocked content...).
+        console.warn(`[vision-chain] ${name} failed (${e.message || e}), falling back to ${chain[i + 1].name}`);
+      }
+    }
+  }
+  throw lastError || new Error('Tous les fournisseurs LLM vision ont échoué.');
+}
 
 function emptyToNull(v) {
   if (v === undefined || v === null) return null;
@@ -13,30 +66,33 @@ function emptyToNull(v) {
 
 /**
  * Hybrid image analysis.
- * Calls Gemini and Vision in parallel (whichever is available). Merges results.
- * Returns { merged, sources: { gemini, vision, errors } } where merged has the
- * same shape as the Gemini output (categorie, marque, modele, description,
- * reference, couleur, dimension, prix_achat, prix_vente).
+ * Runs the vision LLM chain (Gemini -> Groq -> Mistral) and Cloud Vision in
+ * parallel, then merges. Returns { merged, sources } where:
+ *   merged is a normalized article (categorie, marque, modele, description,
+ *     code_barres, couleur, ref_couleur, taille, taille_canape,
+ *     prix_achat, prix_vente).
+ *   sources.llmProvider tells which LLM produced the result ('gemini'|'groq'|'mistral').
  */
 export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, model }) {
-  const useGemini = !!(geminiKey || hasGeminiServerKey());
+  const useLLM = !!(geminiKey || hasGeminiServerKey() || hasGroqKey() || hasMistralKey());
   const useVision = !!(visionKey || hasVisionKey());
 
-  if (!useGemini && !useVision) {
-    throw new Error("Aucun service IA configuré (Gemini ou Cloud Vision).");
+  if (!useLLM && !useVision) {
+    throw new Error("Aucun service IA configuré (LLM vision ou Cloud Vision).");
   }
 
   const tasks = [];
-  let geminiResult = null;
+  let llmResult = null;
+  let llmSource = null;
   let visionResult = null;
-  let geminiError = null;
+  let llmError = null;
   let visionError = null;
 
-  if (useGemini) {
+  if (useLLM) {
     tasks.push(
-      geminiAnalyzeImage({ base64DataUrl, apiKey: geminiKey, model })
-        .then((r) => { geminiResult = r; })
-        .catch((e) => { geminiError = e.message || String(e); })
+      tryVisionLLMs({ base64DataUrl, geminiKey, model })
+        .then(({ result, source }) => { llmResult = result; llmSource = source; })
+        .catch((e) => { llmError = e.message || String(e); })
     );
   }
   if (useVision) {
@@ -49,35 +105,34 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
 
   await Promise.all(tasks);
 
-  if (!geminiResult && !visionResult) {
-    // Both failed — friendly errors are already prefixed by their helpers
+  if (!llmResult && !visionResult) {
     const parts = [];
-    if (geminiError) parts.push(geminiError);
+    if (llmError) parts.push(llmError);
     if (visionError) parts.push(visionError);
     throw new Error(parts.join(' • ') || 'Aucun résultat IA');
   }
 
-  // Start with Gemini's structured result (or empty defaults if Vision-only)
+  // Start with the LLM's structured result (or empty defaults if Vision-only).
   // Field names aligned on MCD (cf. mcd_mld.md §2 articles)
   const merged = {
-    categorie:     geminiResult?.categorie     ?? '',
-    marque:        geminiResult?.marque        ?? '',
-    modele:        geminiResult?.modele        ?? '',
-    description:   geminiResult?.description   ?? '',
-    code_barres:   geminiResult?.code_barres   ?? '',
-    couleur:       geminiResult?.couleur       ?? '',
-    ref_couleur:   geminiResult?.ref_couleur   ?? '',
-    taille:        geminiResult?.taille        ?? '',
-    taille_canape: geminiResult?.taille_canape ?? '',
-    prix_achat:    Number(geminiResult?.prix_achat) || 0,
-    prix_vente:    Number(geminiResult?.prix_vente) || 0,
+    categorie:     llmResult?.categorie     ?? '',
+    marque:        llmResult?.marque        ?? '',
+    modele:        llmResult?.modele        ?? '',
+    description:   llmResult?.description   ?? '',
+    code_barres:   llmResult?.code_barres   ?? '',
+    couleur:       llmResult?.couleur       ?? '',
+    ref_couleur:   llmResult?.ref_couleur   ?? '',
+    taille:        llmResult?.taille        ?? '',
+    taille_canape: llmResult?.taille_canape ?? '',
+    prix_achat:    Number(llmResult?.prix_achat) || 0,
+    prix_vente:    Number(llmResult?.prix_vente) || 0,
   };
 
   let visionExtract = null;
   if (visionResult) {
     visionExtract = extractFromVision(visionResult);
 
-    // marque : logo haute confiance écrase Gemini ; sinon remplit si Gemini est vide
+    // marque : logo haute confiance écrase le LLM ; sinon remplit si le LLM est vide
     if (visionExtract.marque) {
       if (visionExtract.logoConfidence >= LOGO_OVERRIDE_THRESHOLD) {
         merged.marque = visionExtract.marque;
@@ -86,24 +141,24 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
       }
     }
 
-    // code_barres : OCR EAN/UPC est très fiable → écrase sauf si Gemini a déjà un code numérique
+    // code_barres : OCR EAN/UPC est très fiable → écrase sauf si le LLM a déjà un code numérique
     if (visionExtract.code_barres) {
-      const geminiCodeIsNumeric = /^\d{8,14}$/.test(merged.code_barres || '');
-      if (!geminiCodeIsNumeric) merged.code_barres = visionExtract.code_barres;
+      const llmCodeIsNumeric = /^\d{8,14}$/.test(merged.code_barres || '');
+      if (!llmCodeIsNumeric) merged.code_barres = visionExtract.code_barres;
     }
 
-    // taille : OCR plus fiable que Gemini-estimation → écrase si trouvé
+    // taille : OCR plus fiable que LLM-estimation → écrase si trouvé
     if (visionExtract.taille) merged.taille = visionExtract.taille;
 
     // prix_vente : OCR du prix sur l'étiquette = prix réel → écrase l'estimation
     if (visionExtract.detectedPrice > 0) merged.prix_vente = visionExtract.detectedPrice;
 
-    // couleur : Gemini souvent plus nuancé ("Bois clair") → ne remplit que si vide
+    // couleur : le LLM est souvent plus nuancé ("Bois clair") → ne remplit que si vide
     if (visionExtract.couleur && !emptyToNull(merged.couleur)) {
       merged.couleur = visionExtract.couleur;
     }
 
-    // categorie : Gemini d'abord (mappe sur notre liste fermée), Vision en fallback
+    // categorie : LLM d'abord (mappe sur notre liste fermée), Vision en fallback
     if (visionExtract.fallbackCategorie && !emptyToNull(merged.categorie)) {
       merged.categorie = visionExtract.fallbackCategorie;
     }
@@ -112,11 +167,12 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
   return {
     merged,
     sources: {
-      gemini: geminiResult,
+      llm: llmResult,
+      llmProvider: llmSource, // 'gemini' | 'groq' | 'mistral'
       vision: visionResult,
       visionExtract,
       errors: {
-        gemini: geminiError,
+        llm: llmError,
         vision: visionError,
       },
     },
