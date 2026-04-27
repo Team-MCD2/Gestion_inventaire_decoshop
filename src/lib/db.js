@@ -84,11 +84,36 @@ function normalize(data, existing = null) {
   };
 }
 
-// Surface a clean Error from a Supabase response — never leak the raw object.
+// Surface a clean, actionable Error from a Supabase response.
 function rethrow(prefix, error) {
   if (!error) return;
-  const msg = error.message || error.hint || error.details || 'Erreur Supabase';
-  const err = new Error(`${prefix} : ${msg}`);
+  const code = error.code || '';
+  const msg  = error.message || error.hint || error.details || 'Erreur Supabase';
+
+  // Common, friendly translations
+  let friendly = msg;
+  if (code === '42P01' || code === 'PGRST205' || /could not find the table/i.test(msg)) {
+    friendly =
+      "La table 'public.articles' est introuvable dans Supabase. " +
+      "Va dans Supabase → SQL Editor → New query, colle le contenu de " +
+      "supabase/schema.sql et clique RUN.";
+  } else if (code === '42501' || /permission denied/i.test(msg)) {
+    friendly =
+      "Permission refusée sur la table 'articles'. Vérifie que SUPABASE_SERVICE_ROLE_KEY " +
+      "est bien la clé 'service_role' (pas 'anon') et que la RLS n'a pas de policy bloquante.";
+  } else if (code === '23505' || /duplicate key/i.test(msg)) {
+    friendly = "Un article avec ce numéro existe déjà. Réessayez.";
+  } else if (/Invalid API key/i.test(msg) || code === '401' || code === 401) {
+    friendly =
+      "Clé Supabase invalide. Vérifie SUPABASE_SERVICE_ROLE_KEY dans .env " +
+      "(Project Settings → API → service_role).";
+  } else if (/fetch failed|ENOTFOUND|ECONNREFUSED/i.test(msg)) {
+    friendly =
+      "Impossible de joindre Supabase. Vérifie SUPABASE_URL et ta connexion. " +
+      "Si le projet vient d'être créé, attends ~1 minute qu'il finisse de démarrer.";
+  }
+
+  const err = new Error(`${prefix} : ${friendly}`);
   err.cause = error;
   throw err;
 }
