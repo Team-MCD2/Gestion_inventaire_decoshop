@@ -14,19 +14,26 @@ import EditModal from '../components/EditModal.astro';
 
     <!-- Search box -->
     <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 md:p-5">
-      <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-        <form id="scan-search-form" class="relative">
+      <form id="scan-search-form" class="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2 md:gap-3">
+        <div class="relative">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input id="scan-input" type="search" placeholder="DECO-251027-000123 ou 3760123456789"
-            autofocus autocomplete="off"
+          <input id="scan-input" type="text" inputmode="numeric" placeholder="DECO-251027-000123 ou 3760123456789"
+            autofocus autocomplete="off" spellcheck="false"
             class="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2.5 text-sm font-mono shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none" />
-        </form>
+        </div>
+        <button id="btn-scan-search" type="submit"
+          title="Rechercher (Entrée)"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          Rechercher
+        </button>
         <button id="btn-scan-camera" type="button"
           class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3"/><path d="M14 20h3"/></svg>
-          Scanner avec la caméra
+          Caméra
         </button>
-      </div>
+      </form>
+      <p class="mt-2 text-[11px] text-slate-500">Tapez le code et appuyez sur <strong>Entrée</strong> ou cliquez sur <strong>Rechercher</strong>. La caméra déclenche la recherche automatiquement après scan.</p>
     </section>
 
     <!-- Result panel -->
@@ -46,9 +53,19 @@ import EditModal from '../components/EditModal.astro';
     </section>
 
     <!-- Loading state -->
-    <section id="scan-loading" class="hidden bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-10 text-center">
-      <div class="h-10 w-10 mx-auto mb-3 rounded-full border-4 border-slate-200 border-t-amber-500 animate-spin"></div>
-      <p class="text-sm font-medium text-slate-600">Recherche dans la base…</p>
+    <section id="scan-loading" class="hidden bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 rounded-2xl shadow-sm ring-1 ring-amber-200 p-12 text-center">
+      <div class="relative h-20 w-20 mx-auto mb-5">
+        <div class="absolute inset-0 rounded-full bg-amber-400/30 animate-ping"></div>
+        <div class="absolute inset-0 rounded-full bg-amber-100 ring-4 ring-amber-200 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-9 w-9 text-amber-600 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M7 5v14"/><path d="M11 5v14"/><path d="M15 5v14"/><path d="M19 5v14"/></svg>
+        </div>
+      </div>
+      <p class="text-base font-bold text-slate-900">Code-barres reconnu !</p>
+      <p id="scan-loading-code" class="font-mono text-xs text-slate-500 mt-1"></p>
+      <div class="mt-4 inline-flex items-center gap-2 text-sm font-medium text-amber-700">
+        <div class="h-3 w-3 rounded-full border-2 border-amber-300 border-t-amber-600 animate-spin"></div>
+        Recherche dans la base…
+      </div>
     </section>
 
   </main>

@@ -2,6 +2,7 @@
 // Supabase database and shows a card the user can click to edit.
 // The actual edit is delegated to app.js (it owns the EditModal wiring).
 import { $, escapeHtml, fmtPrice, renderStatusBadge, toast } from './ui.js';
+import { playSuccessBeep, playErrorBeep } from './sound.js';
 
 const STATUS_LABELS = {
   en_stock: 'En stock',
@@ -167,6 +168,9 @@ async function searchAndShow(query) {
   if (q === lastQuery) return; // avoid duplicate searches on Enter spam
   lastQuery = q;
 
+  // Affiche le code reconnu sous le spinner pour un feedback immédiat
+  const codeLabel = $('#scan-loading-code');
+  if (codeLabel) codeLabel.textContent = q;
   showState('loading');
   try {
     const res = await fetch(`/api/articles/search?q=${encodeURIComponent(q)}`);
@@ -175,9 +179,15 @@ async function searchAndShow(query) {
       throw new Error(err.error || `Erreur ${res.status}`);
     }
     const data = await res.json();
-    if (data.found && data.article) renderArticle(data.article);
-    else                            renderNotFound(q);
+    if (data.found && data.article) {
+      try { playSuccessBeep(); } catch {}
+      renderArticle(data.article);
+    } else {
+      try { playErrorBeep(); } catch {}
+      renderNotFound(q);
+    }
   } catch (e) {
+    try { playErrorBeep(); } catch {}
     toast(e.message || 'Erreur de recherche', 'error');
     showState('empty');
   }
@@ -188,22 +198,18 @@ function wireSearchForm() {
   const input = $('#scan-input');
   if (!form || !input) return;
 
+  // Recherche UNIQUEMENT au submit (Entrée ou clic sur le bouton Rechercher /
+  // sur le bouton Caméra qui déclenchera onScanFound côté caméra).
+  // Pas de auto-search sur saisie : cela évite les requêtes intempestives
+  // pendant que l'utilisateur tape un numéro.
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     searchAndShow(input.value);
   });
 
-  // Auto-search on barcode-scanner-style input (long string + Enter or rapid keystrokes)
-  let typingTimer = null;
-  input.addEventListener('input', () => {
-    clearTimeout(typingTimer);
-    const v = input.value.trim();
-    // Numeric ≥ 8 chars OR DECO- prefix → almost certainly a scan
-    const looksLikeScan = /^\d{8,14}$/.test(v) || /^DECO-\d{6}-\d+$/i.test(v);
-    if (looksLikeScan) {
-      typingTimer = setTimeout(() => searchAndShow(v), 200);
-    }
-  });
+  // Reset le cache de la dernière recherche dès qu'on modifie le champ pour
+  // permettre de relancer la même recherche après une correction.
+  input.addEventListener('input', () => { lastQuery = ''; });
 }
 
 function wireCameraButton() {

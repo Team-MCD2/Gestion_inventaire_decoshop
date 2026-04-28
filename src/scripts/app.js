@@ -11,9 +11,14 @@ import { startBarcodeScanner, stopBarcodeScanner } from './barcode.js';
 import { analyzeImage, analyzeBarcode } from './gemini.js';
 import { downloadCSV } from './csv.js';
 import { downloadPDF } from './pdf.js';
+import { playScanBeep, unlockAudioOnce } from './sound.js';
 import {
   $, escapeHtml, fmtPrice, renderStatusBadge, toast,
 } from './ui.js';
+
+// Pré-débloquer le contexte audio à la première interaction utilisateur
+// (politique d'autoplay des navigateurs).
+unlockAudioOnce();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Field config (MCD schema, cf. mcd_mld.md §2)
@@ -349,6 +354,8 @@ let barcodeProcessing = false;
 async function onBarcodeDetected(code) {
   if (barcodeProcessing) return;
   barcodeProcessing = true;
+  // Bip immédiat dès que la caméra a reconnu quelque chose — feedback instantané.
+  try { playScanBeep(); } catch {}
   const overlay = $('#scanner-loading');
   const loadingLabel = $('#scanner-loading-label');
 
