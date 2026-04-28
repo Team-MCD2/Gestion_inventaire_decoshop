@@ -1,7 +1,7 @@
 // /statistiques page — KPI + graphes Chart.js sur les données d'inventaire.
 // Les ventes Shopify viendront plus tard via une autre table (orders).
 import Chart from 'chart.js/auto';
-import { $, escapeHtml, fmtPrice, fmtPriceCompact } from './ui.js';
+import { $, escapeHtml, fmtPrice, fmtPriceCompact, toast } from './ui.js';
 
 const PALETTE = [
   '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316',
@@ -35,6 +35,75 @@ function fillKpis(k) {
   $('#kpi-value').textContent = fmtPriceCompact(k.value);
   $('#kpi-low').textContent   = fmtInt(k.low);
   $('#kpi-out').textContent   = fmtInt(k.out);
+}
+
+// ─── Loading state helpers ──────────────────────────────────────────────────
+// Removes skeleton placeholders and reveals real values with a soft fade-in.
+function revealKpis() {
+  document.querySelectorAll('.kpi-skel, .kpi-sub-skel').forEach((s) => s.remove());
+  document.querySelectorAll('.kpi-val, .kpi-sub').forEach((v) => {
+    v.classList.remove('hidden');
+    v.style.opacity = '0';
+    v.style.transition = 'opacity 250ms ease';
+    requestAnimationFrame(() => { v.style.opacity = '1'; });
+  });
+}
+
+function revealCharts() {
+  document.querySelectorAll('.chart-loader').forEach((overlay) => {
+    overlay.style.transition = 'opacity 250ms ease';
+    overlay.style.opacity = '0';
+    setTimeout(() => overlay.remove(), 280);
+  });
+}
+
+function hidePageLoader() {
+  const loader = $('#stats-loader');
+  if (!loader) return;
+  loader.style.transition = 'opacity 200ms ease';
+  loader.style.opacity = '0';
+  setTimeout(() => loader.remove(), 220);
+}
+
+function showError(msg) {
+  // Replace KPI skeletons with neutral dashes
+  document.querySelectorAll('.kpi-skel, .kpi-sub-skel').forEach((s) => s.remove());
+  document.querySelectorAll('.kpi-val').forEach((v) => {
+    v.classList.remove('hidden');
+    v.classList.remove('text-slate-900', 'text-amber-600', 'text-red-600');
+    v.classList.add('text-slate-300');
+    v.textContent = '—';
+  });
+  document.querySelectorAll('.kpi-sub').forEach((v) => v.classList.remove('hidden'));
+
+  // Replace chart loaders with an error state
+  document.querySelectorAll('.chart-loader').forEach((overlay) => {
+    overlay.innerHTML = `
+      <div class="text-center px-3">
+        <div class="text-xs font-semibold text-slate-600">Données indisponibles</div>
+        <button class="stats-retry mt-2 text-xs underline font-semibold text-indigo-600 hover:text-indigo-700">Réessayer</button>
+      </div>
+    `;
+  });
+
+  // Replace top-skel with empty error placeholder
+  const top = $('#top-list');
+  if (top) {
+    top.innerHTML = `
+      <div class="py-8 text-center text-sm text-slate-400">
+        Impossible de charger les statistiques.
+        <button class="stats-retry block mx-auto mt-2 underline font-semibold text-indigo-600 hover:text-indigo-700">Réessayer</button>
+      </div>
+    `;
+  }
+
+  // Wire all retry buttons
+  document.querySelectorAll('.stats-retry').forEach((btn) => {
+    btn.addEventListener('click', () => window.location.reload());
+  });
+
+  hidePageLoader();
+  if (msg) toast(msg, 'error');
 }
 
 function groupByCategory(articles) {
@@ -196,14 +265,21 @@ async function boot() {
   try {
     const articles = await fetchArticles();
     const k = computeKpi(articles);
+
+    // Fill values then reveal (skeletons → real values with fade-in)
     fillKpis(k);
+    revealKpis();
+
+    // Render charts (canvas was already in DOM, just hidden behind overlays)
     renderCategoryDonut(articles);
     renderValueByCategoryBar(articles);
     renderStatusPie(articles);
     renderTopList(articles);
+    revealCharts();
+    hidePageLoader();
   } catch (e) {
     console.error('Stats load error:', e);
-    // Show dashes; user can refresh
+    showError('Erreur de chargement des statistiques');
   }
 }
 

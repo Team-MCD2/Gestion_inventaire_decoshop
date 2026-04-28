@@ -83,20 +83,36 @@ import Layout from '../layouts/Layout.astro';
     <!-- Quick stat strip -->
     <section id="quick-stats" class="mt-10 md:mt-14 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
       <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total articles</div>
-        <div class="mt-1 text-2xl md:text-3xl font-extrabold text-slate-900 tabular-nums" id="qs-total">—</div>
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total articles</div>
+          <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-indigo-500 animate-spin"></div>
+        </div>
+        <div class="qs-skel mt-2 h-8 md:h-9 w-20 rounded-lg bg-slate-200 animate-pulse"></div>
+        <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-slate-900 tabular-nums hidden" id="qs-total">—</div>
       </div>
       <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Valeur stock</div>
-        <div class="mt-1 text-2xl md:text-3xl font-extrabold text-slate-900 tabular-nums" id="qs-value">—</div>
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Valeur stock</div>
+          <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-emerald-500 animate-spin"></div>
+        </div>
+        <div class="qs-skel mt-2 h-8 md:h-9 w-28 rounded-lg bg-slate-200 animate-pulse"></div>
+        <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-slate-900 tabular-nums hidden" id="qs-value">—</div>
       </div>
       <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Stock faible</div>
-        <div class="mt-1 text-2xl md:text-3xl font-extrabold text-amber-600 tabular-nums" id="qs-low">—</div>
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Stock faible</div>
+          <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-amber-500 animate-spin"></div>
+        </div>
+        <div class="qs-skel mt-2 h-8 md:h-9 w-16 rounded-lg bg-slate-200 animate-pulse"></div>
+        <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-amber-600 tabular-nums hidden" id="qs-low">—</div>
       </div>
       <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">En rupture</div>
-        <div class="mt-1 text-2xl md:text-3xl font-extrabold text-red-600 tabular-nums" id="qs-out">—</div>
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">En rupture</div>
+          <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-red-500 animate-spin"></div>
+        </div>
+        <div class="qs-skel mt-2 h-8 md:h-9 w-16 rounded-lg bg-slate-200 animate-pulse"></div>
+        <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-red-600 tabular-nums hidden" id="qs-out">—</div>
       </div>
     </section>
 
@@ -106,23 +122,61 @@ import Layout from '../layouts/Layout.astro';
   </main>
 
   <script>
-    // Quick stats fetch — lightweight, no scanner / form / table on this page.
+    // Quick stats fetch with skeleton loading state.
     (async () => {
+      const fmtPrice = (v) => v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' €';
+
+      // Hide skeletons + spinners, reveal real values
+      const reveal = () => {
+        document.querySelectorAll('#quick-stats .qs-skel').forEach((s) => s.remove());
+        document.querySelectorAll('#quick-stats .qs-spinner').forEach((s) => s.remove());
+        document.querySelectorAll('#quick-stats .qs-val').forEach((v) => {
+          v.classList.remove('hidden');
+          // Petit fade-in pour adoucir l'apparition
+          v.style.opacity = '0';
+          v.style.transition = 'opacity 250ms ease';
+          requestAnimationFrame(() => { v.style.opacity = '1'; });
+        });
+      };
+
+      // Show "indisponible" state with a Retry button
+      const showError = (msg) => {
+        document.querySelectorAll('#quick-stats .qs-skel').forEach((s) => s.remove());
+        document.querySelectorAll('#quick-stats .qs-spinner').forEach((s) => s.remove());
+        document.querySelectorAll('#quick-stats .qs-val').forEach((v) => {
+          v.classList.remove('hidden');
+          v.classList.remove('text-slate-900', 'text-amber-600', 'text-red-600');
+          v.classList.add('text-slate-300');
+          v.textContent = '—';
+        });
+        const host = document.getElementById('quick-stats');
+        if (host && !document.getElementById('qs-error')) {
+          const banner = document.createElement('div');
+          banner.id = 'qs-error';
+          banner.className = 'col-span-2 md:col-span-4 -mt-1 text-center text-xs text-slate-500';
+          banner.innerHTML = `${msg} · <button id="qs-retry" class="underline font-semibold text-indigo-600 hover:text-indigo-700">Réessayer</button>`;
+          host.appendChild(banner);
+          document.getElementById('qs-retry').addEventListener('click', () => window.location.reload());
+        }
+      };
+
       try {
         const res = await fetch('/api/articles');
-        if (!res.ok) return;
-        // L'API renvoie { articles: [...] }, pas un tableau direct.
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const { articles = [] } = await res.json();
         const total = articles.length;
         const value = articles.reduce((s, a) => s + (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0), 0);
         const low   = articles.filter((a) => a.statut === 'stock_faible').length;
         const out   = articles.filter((a) => a.statut === 'rupture').length;
-        const fmtPrice = (v) => v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' €';
         document.getElementById('qs-total').textContent = total;
         document.getElementById('qs-value').textContent = fmtPrice(value);
         document.getElementById('qs-low').textContent   = low;
         document.getElementById('qs-out').textContent   = out;
-      } catch { /* offline / no DB — leave the dashes */ }
+        reveal();
+      } catch (e) {
+        console.error('Quick stats fetch failed:', e);
+        showError('Données indisponibles');
+      }
     })();
   </script>
 </Layout>
