@@ -481,7 +481,14 @@ function renderTable() {
       <td class="px-3 py-2">${escapeHtml(a.couleur || '')}</td>
       <td class="px-3 py-2 max-w-xs"><div class="line-clamp-2 text-slate-600">${escapeHtml(a.description || '')}</div></td>
       <td class="px-3 py-2 text-right tabular-nums">${fmtPrice(a.prix_vente)}</td>
-      <td class="px-3 py-2 font-mono text-xs">${escapeHtml(a.code_barres || '')}</td>
+      <td class="px-3 py-2 font-mono text-xs group relative">
+        <div class="flex items-center gap-2">
+          <span class="inline-barcode-val" data-id="${a.id}">${escapeHtml(a.code_barres || '—')}</span>
+          <button data-action="inline-edit-barcode" data-id="${a.id}" class="hidden md:inline-flex opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600 shrink-0" title="Éditer le code-barres rapidement">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+        </div>
+      </td>
       <td class="px-3 py-2 whitespace-nowrap text-xs">${escapeHtml(a.taille || '')}</td>
       <td class="px-3 py-2 text-right tabular-nums">${a.quantite_initiale ?? ''}</td>
       <td class="px-3 py-2 text-right tabular-nums font-semibold">${a.quantite ?? ''}</td>
@@ -596,6 +603,18 @@ function wireInventoryTable() {
         toast('Article supprimé');
       } catch (err) {
         toast(err.message, 'error');
+      }
+    } else if (action === 'inline-edit-barcode') {
+      const article = getState().articles.find((a) => a.id === id);
+      if (!article) return;
+      const newCode = prompt(`Modifier le code-barres pour l'article ${article.numero_article} :`, article.code_barres || '');
+      if (newCode !== null && newCode.trim() !== (article.code_barres || '')) {
+        try {
+          await updateArticle(id, { code_barres: newCode.trim() });
+          toast('Code-barres mis à jour', 'success');
+        } catch (err) {
+          toast(err.message || 'Erreur lors de la mise à jour', 'error');
+        }
       }
     }
   });

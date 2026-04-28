@@ -50,10 +50,11 @@ function generateEAN13(taken = new Set()) {
 
 // ─── State ─────────────────────────────────────────────────────────────────
 let allArticles = [];
-let missing = [];           // articles sans code_barres
+let filteredArticles = [];
 let selected = new Set();   // ids sélectionnés
 let generating = false;
 let lastGenerated = [];     // [{ article, code }] de la dernière génération
+let currentFilter = 'missing';
 
 // ─── Rendering ─────────────────────────────────────────────────────────────
 function setLoading(on) {
@@ -116,31 +117,62 @@ function updateKPIs() {
   if (elWho)   elWho.textContent   = String(without);
 }
 
-function renderMissing() {
+function applyFilter() {
+  currentFilter = $('#filter-status')?.value || 'missing';
+  if (currentFilter === 'missing') {
+    filteredArticles = allArticles.filter((a) => !a.code_barres || !String(a.code_barres).trim());
+  } else if (currentFilter === 'with') {
+    filteredArticles = allArticles.filter((a) => a.code_barres && String(a.code_barres).trim());
+  } else {
+    filteredArticles = [...allArticles];
+  }
+  selected = new Set(filteredArticles.map((a) => a.id));
+  renderTable();
+}
+
+function renderTable() {
   const tbody = $('#missing-tbody');
   const summary = $('#missing-summary');
   const section = $('#missing-section');
   const empty = $('#empty');
   const btnGen = $('#btn-generate');
+  const btnExport = $('#btn-export-selected');
   const checkAll = $('#check-all');
   if (!tbody) return;
 
-  if (!missing.length) {
+  if (!filteredArticles.length) {
     section?.classList.add('hidden');
     empty?.classList.remove('hidden');
-    if (summary) summary.textContent = 'Aucun article sans code-barres.';
+    if (summary) summary.textContent = currentFilter === 'missing' ? 'Aucun article sans code-barres.' : 'Aucun article trouvé.';
     if (btnGen) btnGen.disabled = true;
+    if (btnExport) btnExport.disabled = true;
     return;
   }
 
   empty?.classList.add('hidden');
   section?.classList.remove('hidden');
   $('#missing-table')?.classList.remove('hidden');
-  if (summary) summary.textContent = `${missing.length} article${missing.length > 1 ? 's' : ''} sans code-barres. Sélectionnez ceux à traiter (tous cochés par défaut).`;
-  if (btnGen) btnGen.disabled = selected.size === 0;
-  if (checkAll) checkAll.checked = selected.size === missing.length;
+  
+  if (summary) {
+    const text = currentFilter === 'missing' ? 'sans code-barres' : (currentFilter === 'with' ? 'avec code-barres' : 'au total');
+    summary.textContent = `${filteredArticles.length} article${filteredArticles.length > 1 ? 's' : ''} ${text}. Sélectionnez ceux à traiter.`;
+  }
+  
+  const hasMissingInSelection = Array.from(selected).some(id => {
+    const a = allArticles.find(x => x.id === id);
+    return a && (!a.code_barres || !String(a.code_barres).trim());
+  });
+  
+  const hasCodeInSelection = Array.from(selected).some(id => {
+    const a = allArticles.find(x => x.id === id);
+    return a && a.code_barres && String(a.code_barres).trim();
+  });
 
-  tbody.innerHTML = missing.map((a) => `
+  if (btnGen) btnGen.disabled = !hasMissingInSelection;
+  if (btnExport) btnExport.disabled = !hasCodeInSelection;
+  if (checkAll) checkAll.checked = selected.size === filteredArticles.length && filteredArticles.length > 0;
+
+  tbody.innerHTML = filteredArticles.map((a) => `
     <tr class="hover:bg-slate-50">
       <td class="px-3 py-2">
         <input type="checkbox" class="row-check rounded border-slate-300"
@@ -157,6 +189,7 @@ function renderMissing() {
       </td>
       <td class="px-3 py-2 text-slate-700">${escapeHtml(a.marque || '—')}</td>
       <td class="px-3 py-2 text-slate-700">${escapeHtml(a.categorie || '—')}</td>
+      <td class="px-3 py-2 font-mono text-xs font-semibold text-slate-600">${a.code_barres ? escapeHtml(a.code_barres) : '—'}</td>
       <td class="px-3 py-2 text-right tabular-nums font-semibold">${a.quantite ?? 0}</td>
     </tr>
   `).join('');
@@ -166,8 +199,19 @@ function renderMissing() {
     el.addEventListener('change', () => {
       const id = el.getAttribute('data-id');
       if (el.checked) selected.add(id); else selected.delete(id);
-      if (btnGen) btnGen.disabled = selected.size === 0;
-      if (checkAll) checkAll.checked = selected.size === missing.length;
+      
+      const hasMissing = Array.from(selected).some(sId => {
+        const a = allArticles.find(x => x.id === sId);
+        return a && (!a.code_barres || !String(a.code_barres).trim());
+      });
+      const hasCode = Array.from(selected).some(sId => {
+        const a = allArticles.find(x => x.id === sId);
+        return a && a.code_barres && String(a.code_barres).trim();
+      });
+
+      if (btnGen) btnGen.disabled = !hasMissing;
+      if (btnExport) btnExport.disabled = !hasCode;
+      if (checkAll) checkAll.checked = selected.size === filteredArticles.length && filteredArticles.length > 0;
     });
   });
 }
@@ -180,10 +224,8 @@ async function fetchArticles() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const { articles = [] } = await res.json();
     allArticles = articles;
-    missing = allArticles.filter((a) => !a.code_barres || !String(a.code_barres).trim());
-    selected = new Set(missing.map((a) => a.id)); // tout sélectionné par défaut
     updateKPIs();
-    renderMissing();
+    applyFilter();
   } catch (e) {
     toast(e.message || 'Erreur de chargement', 'error');
   } finally {
@@ -228,7 +270,15 @@ async function generateAll() {
       .filter((c) => /^\d{13}$/.test(c))
   );
 
-  const toUpdate = missing.filter((a) => selected.has(a.id));
+  const toUpdate = Array.from(selected)
+    .map(id => allArticles.find(a => a.id === id))
+    .filter(a => a && (!a.code_barres || !String(a.code_barres).trim()));
+    
+  if (!toUpdate.length) {
+    toast('Aucun article sélectionné nécessitant un code-barres', 'info');
+    return;
+  }
+  
   const generated = []; // { article, code }
 
   // Affiche l'overlay modal avec barre de progression
@@ -325,81 +375,52 @@ function renderLabels(items) {
   section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ─── PDF download (réutilise jsPDF déjà installé) ──────────────────────────
-async function downloadPdf() {
-  if (!lastGenerated.length) { toast('Aucune étiquette à exporter', 'info'); return; }
+async function downloadPdf(itemsToExport = null) {
+  const items = Array.isArray(itemsToExport) ? itemsToExport : lastGenerated;
+  if (!items || !items.length) { toast('Aucune étiquette à exporter', 'info'); return; }
+  
   showPdfOverlay(true);
   try {
     const { jsPDF } = await import('jspdf');
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-    const pageW  = doc.internal.pageSize.getWidth();
-    const pageH  = doc.internal.pageSize.getHeight();
-    const margin = 8;
-    const cols   = 3;
-    const gap    = 4;
-    const cellW  = (pageW - 2 * margin - gap * (cols - 1)) / cols;
-    const cellH  = 34;
-    const rowsPerPage = Math.floor((pageH - 2 * margin) / (cellH + gap));
+    // Format thermique normé (ex: rouleau 50x30 mm)
+    const doc = new jsPDF({ unit: 'mm', format: [50, 30] });
 
-    let i = 0;
     let page = 0;
-    while (i < lastGenerated.length) {
+    for (const it of items) {
       if (page > 0) doc.addPage();
-      for (let r = 0; r < rowsPerPage && i < lastGenerated.length; r++) {
-        for (let c = 0; c < cols && i < lastGenerated.length; c++, i++) {
-          const x = margin + c * (cellW + gap);
-          const y = margin + r * (cellH + gap);
-          const { article, code } = lastGenerated[i];
+      const { article, code } = it;
 
-          // Cadre
-          doc.setDrawColor(203, 213, 225);
-          doc.rect(x, y, cellW, cellH);
+      // Titre (marque ou catégorie)
+      const brand = (article.marque || article.categorie || 'DECO SHOP').toString();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(0);
+      doc.text(brand.slice(0, 30), 25, 4, { align: 'center' });
 
-          // Titre (marque ou catégorie)
-          const brand = (article.marque || article.categorie || 'DECO SHOP').toString();
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7);
-          doc.setTextColor(100);
-          doc.text(brand.slice(0, 30), x + cellW / 2, y + 4, { align: 'center' });
-
-          // Description (2 lignes max)
-          const desc = (article.description || article.numero_article || '').toString();
-          if (desc) {
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(6.5);
-            doc.setTextColor(30);
-            const lines = doc.splitTextToSize(desc, cellW - 4).slice(0, 2);
-            doc.text(lines, x + cellW / 2, y + 8, { align: 'center' });
-          }
-
-          // Code-barres EAN-13 → canvas → PNG → addImage
-          const canvas = document.createElement('canvas');
-          try {
-            JsBarcode(canvas, code, {
-              format: 'EAN13', width: 2, height: 40,
-              displayValue: true, fontSize: 12, margin: 0,
-            });
-            const imgW = cellW - 6;
-            const imgH = 16;
-            const imgX = x + 3;
-            const imgY = y + 14;
-            doc.addImage(canvas.toDataURL('image/png'), 'PNG', imgX, imgY, imgW, imgH);
-          } catch (err) {
-            console.error('Erreur encodage canvas EAN-13', code, err);
-          }
-
-          // N° article (footer)
-          doc.setFont('courier', 'normal');
-          doc.setFontSize(6);
-          doc.setTextColor(120);
-          doc.text(`N° ${article.numero_article || ''}`.slice(0, 36), x + cellW / 2, y + cellH - 1.8, { align: 'center' });
-        }
+      // Code-barres EAN-13 normé
+      const canvas = document.createElement('canvas');
+      try {
+        JsBarcode(canvas, code, {
+          format: 'EAN13', width: 2, height: 40,
+          displayValue: true, fontSize: 14, margin: 0,
+        });
+        // 37.29 x 18 mm (proportions GS1 pour tenir sur la hauteur de l'étiquette)
+        doc.addImage(canvas.toDataURL('image/png'), 'PNG', (50 - 37.29) / 2, 7, 37.29, 18);
+      } catch (err) {
+        console.error('Erreur encodage canvas EAN-13', code, err);
       }
+
+      // N° article (footer)
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor(50);
+      doc.text(`N° ${article.numero_article || ''}`.slice(0, 36), 25, 28, { align: 'center' });
+      
       page++;
     }
 
     const ts = new Date().toISOString().slice(0, 10);
-    doc.save(`codes-barres-deco-shop-${ts}.pdf`);
+    doc.save(`etiquettes-deco-shop-${ts}.pdf`);
     toast('PDF téléchargé', 'success');
   } catch (e) {
     console.error(e);
@@ -409,17 +430,31 @@ async function downloadPdf() {
   }
 }
 
+function exportSelectedPdf() {
+  const items = Array.from(selected)
+    .map(id => allArticles.find(a => a.id === id))
+    .filter(a => a && a.code_barres && String(a.code_barres).trim())
+    .map(a => ({ article: a, code: a.code_barres }));
+  if (!items.length) {
+    toast('Aucun article avec code-barres sélectionné', 'warning');
+    return;
+  }
+  downloadPdf(items);
+}
+
 // ─── Wiring ────────────────────────────────────────────────────────────────
 function wire() {
+  $('#filter-status')?.addEventListener('change', applyFilter);
   $('#btn-refresh')?.addEventListener('click', fetchArticles);
   $('#btn-generate')?.addEventListener('click', generateAll);
+  $('#btn-export-selected')?.addEventListener('click', exportSelectedPdf);
   $('#btn-print')?.addEventListener('click', () => window.print());
-  $('#btn-download-pdf')?.addEventListener('click', downloadPdf);
+  $('#btn-download-pdf')?.addEventListener('click', () => downloadPdf(lastGenerated));
 
   $('#check-all')?.addEventListener('change', (e) => {
-    if (e.target.checked) selected = new Set(missing.map((a) => a.id));
+    if (e.target.checked) selected = new Set(filteredArticles.map((a) => a.id));
     else                  selected = new Set();
-    renderMissing();
+    renderTable();
   });
 }
 
