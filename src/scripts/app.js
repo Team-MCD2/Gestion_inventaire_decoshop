@@ -216,6 +216,9 @@ window.__decoshop.closeEditModal = closeEditModal;
 // scanCallback :
 //   - 'create' (default) : capture/analyse remplit le formulaire #article-form
 //   - 'search' : un code-barres détecté déclenche window.__decoshop.onScanFound(code)
+//   - 'fill'   : un code-barres détecté est inséré DANS LE SEUL champ #code_barres
+//                du formulaire actif, sans appel à l'API barcode (l'utilisateur a
+//                déjà rempli les autres champs via la photo).
 let scannerCallback = 'create';
 
 async function openScanner(mode, callback = 'create') {
@@ -362,6 +365,24 @@ async function onBarcodeDetected(code) {
     return;
   }
 
+  // ─── Fill mode (bouton scanner DANS le champ code_barres de /ajouter) ──
+  // L'utilisateur a déjà rempli les autres champs via la photo : on ne
+  // remplit QUE le champ code_barres et on ne fait AUCUN lookup API.
+  if (scannerCallback === 'fill') {
+    await stopBarcodeScanner();
+    await closeScanner();
+    barcodeProcessing = false;
+    const input = document.querySelector('#code_barres');
+    if (input) {
+      input.value = String(code);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.focus();
+    }
+    toast(`Code-barres scanné : ${code}`, 'success');
+    return;
+  }
+
   // ─── Create mode (called from /ajouter) ─────────────────────────────────
   if (loadingLabel) loadingLabel.textContent = `Code détecté: ${code} — recherche…`;
   overlay?.classList.remove('hidden');
@@ -483,6 +504,10 @@ function wireCreateForm() {
 
   $('#btn-open-photo')?.addEventListener('click', () => openScanner('photo', 'create'));
   $('#btn-open-barcode')?.addEventListener('click', () => openScanner('barcode', 'create'));
+  // Petit bouton "scanner" intégré au champ code_barres : ne remplit QUE ce
+  // champ (utile quand l'utilisateur a déjà filmé l'article et veut juste
+  // ajouter le code-barres sans écraser les autres données pré-remplies).
+  $('#btn-scan-barcode-field')?.addEventListener('click', () => openScanner('barcode', 'fill'));
 
   const uploadInput = $('#photo-upload-input');
   if (uploadInput) {
