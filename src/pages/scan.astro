@@ -1,0 +1,63 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ScannerModal from '../components/ScannerModal.astro';
+import EditModal from '../components/EditModal.astro';
+---
+<Layout title="Scanner un produit — DECO SHOP">
+  <main class="max-w-5xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+
+    <div>
+      <div class="text-xs font-semibold text-amber-600 uppercase tracking-wider">Recherche</div>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Scanner un produit</h1>
+      <p class="text-sm text-slate-600 mt-1">Scannez un QR / code-barres ou tapez un numéro d'article pour ouvrir sa fiche directement.</p>
+    </div>
+
+    <!-- Search box -->
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 md:p-5">
+      <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+        <form id="scan-search-form" class="relative">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="scan-input" type="search" placeholder="DECO-251027-000123 ou 3760123456789"
+            autofocus autocomplete="off"
+            class="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2.5 text-sm font-mono shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none" />
+        </form>
+        <button id="btn-scan-camera" type="button"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3"/><path d="M14 20h3"/></svg>
+          Scanner avec la caméra
+        </button>
+      </div>
+    </section>
+
+    <!-- Result panel -->
+    <section id="scan-result" class="hidden">
+      <!-- Filled dynamically by scripts/scan.js -->
+    </section>
+
+    <!-- Empty state -->
+    <section id="scan-empty" class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-10 md:p-14 text-center">
+      <div class="mx-auto h-16 w-16 rounded-2xl bg-amber-50 ring-1 ring-amber-200 flex items-center justify-center text-amber-500 mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+      </div>
+      <h2 class="text-lg font-semibold text-slate-900">Prêt à scanner</h2>
+      <p class="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+        Pointez la caméra sur un code-barres ou un QR, ou collez un numéro d'article dans le champ ci-dessus.
+      </p>
+    </section>
+
+    <!-- Loading state -->
+    <section id="scan-loading" class="hidden bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-10 text-center">
+      <div class="h-10 w-10 mx-auto mb-3 rounded-full border-4 border-slate-200 border-t-amber-500 animate-spin"></div>
+      <p class="text-sm font-medium text-slate-600">Recherche dans la base…</p>
+    </section>
+
+  </main>
+
+  <ScannerModal />
+  <EditModal />
+
+  <script>
+    import '../scripts/app.js';
+    import '../scripts/scan.js';
+  </script>
+</Layout>

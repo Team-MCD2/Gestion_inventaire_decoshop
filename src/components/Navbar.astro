@@ -1,0 +1,62 @@
+---
+// Sticky top navigation, shared by every page.
+// Highlights the active link based on the current pathname.
+const path = Astro.url.pathname.replace(/\/+$/, '') || '/';
+
+const links = [
+  { href: '/',              label: 'Accueil',       icon: 'home' },
+  { href: '/inventaire',    label: 'Inventaire',    icon: 'box' },
+  { href: '/ajouter',       label: 'Ajouter',       icon: 'plus' },
+  { href: '/statistiques',  label: 'Statistiques',  icon: 'chart' },
+  { href: '/scan',          label: 'Scan',          icon: 'qr' },
+];
+
+function isActive(href: string) {
+  if (href === '/') return path === '/';
+  return path === href || path.startsWith(href + '/');
+}
+---
+<header class="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-slate-200">
+  <div class="max-w-7xl mx-auto flex items-center gap-3 p-3 md:p-4">
+    <a href="/" class="flex items-center gap-2 min-w-0 mr-2 md:mr-4">
+      <div class="relative h-9 w-9 md:h-10 md:w-10 shrink-0 rounded-full overflow-hidden ring-2 ring-white shadow-md">
+        <img src="/favicon.svg" alt="DECO SHOP" class="h-full w-full" />
+      </div>
+      <div class="min-w-0 hidden sm:block">
+        <h1 class="text-sm md:text-base font-extrabold text-slate-900 tracking-tight truncate">DECO SHOP</h1>
+        <p class="hidden md:block text-[11px] text-slate-500 -mt-0.5">Inventaire intelligent</p>
+      </div>
+    </a>
+
+    <nav class="flex-1 flex items-center gap-1 overflow-x-auto no-scrollbar">
+      {links.map((l) => (
+        <a
+          href={l.href}
+          class:list={[
+            'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold whitespace-nowrap transition',
+            isActive(l.href)
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
+          ]}
+        >
+          {l.icon === 'home' && (
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          )}
+          {l.icon === 'box' && (
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          )}
+          {l.icon === 'plus' && (
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          )}
+          {l.icon === 'chart' && (
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+          )}
+          {l.icon === 'qr' && (
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3"/><path d="M14 20h3"/><path d="M20 20v1"/></svg>
+          )}
+          <span class="hidden sm:inline">{l.label}</span>
+        </a>
+      ))}
+    </nav>
+  </div>
+</header>

@@ -1,443 +1,127 @@
 ---
 import Layout from '../layouts/Layout.astro';
 ---
-<Layout>
-  <!-- HEADER -->
-  <header class="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-slate-200">
-    <div class="max-w-7xl mx-auto flex items-center justify-between gap-3 p-3 md:p-4">
-      <div class="flex items-center gap-3 min-w-0">
-        <div class="relative h-10 w-10 md:h-12 md:w-12 shrink-0 rounded-full overflow-hidden ring-2 ring-white shadow-md">
-          <img src="/favicon.svg" alt="DECO SHOP" class="h-full w-full" />
-        </div>
-        <div class="min-w-0">
-          <h1 class="text-base md:text-xl font-extrabold text-slate-900 tracking-tight truncate">
-            DECO SHOP — Inventaire intelligent
-          </h1>
-          <p class="hidden md:block text-xs text-slate-500">Caméra · IA · Code-barres · Export CSV</p>
-        </div>
+<Layout title="DECO SHOP — Accueil">
+  <main class="max-w-6xl mx-auto p-4 md:p-8 lg:p-12">
+
+    <!-- Hero -->
+    <section class="text-center mb-10 md:mb-14">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold ring-1 ring-indigo-200 mb-4">
+        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+        Plateforme d'inventaire intelligent
       </div>
-      <div class="flex items-center gap-2">
-        <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-          <span id="inventory-count">0</span> articles
-        </span>
-      </div>
-    </div>
-  </header>
-
-  <main class="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-
-    <!-- ACTION TILES -->
-    <section class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-      <button id="btn-open-photo" type="button"
-        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-blue-700 text-white p-5 md:p-6 text-left shadow-lg ring-1 ring-indigo-500/30 hover:shadow-xl hover:-translate-y-0.5 transition">
-        <div class="flex items-start gap-4">
-          <div class="h-12 w-12 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="text-lg md:text-xl font-bold">Filmer l'article</div>
-            <div class="text-sm text-white/80 mt-0.5">Analyse IA de la photo pour pré-remplir les champs</div>
-          </div>
-        </div>
-      </button>
-
-      <button id="btn-upload-photo" type="button"
-        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-600 text-white p-5 md:p-6 text-left shadow-lg ring-1 ring-emerald-500/30 hover:shadow-xl hover:-translate-y-0.5 transition">
-        <div class="flex items-start gap-4">
-          <div class="h-12 w-12 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="text-lg md:text-xl font-bold">Importer une photo</div>
-            <div class="text-sm text-white/90 mt-0.5">Depuis votre galerie / disque, puis analyse IA</div>
-          </div>
-        </div>
-      </button>
-
-      <button id="btn-open-barcode" type="button"
-        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 text-white p-5 md:p-6 text-left shadow-lg ring-1 ring-amber-500/30 hover:shadow-xl hover:-translate-y-0.5 transition">
-        <div class="flex items-start gap-4">
-          <div class="h-12 w-12 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M7 5v14"/><path d="M11 5v14"/><path d="M15 5v14"/><path d="M19 5v14"/></svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="text-lg md:text-xl font-bold">Scanner le code-barres</div>
-            <div class="text-sm text-white/90 mt-0.5">EAN / UPC / QR : identification automatique</div>
-          </div>
-        </div>
-      </button>
+      <h1 class="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
+        Bienvenue sur <span class="bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">DECO SHOP</span>
+      </h1>
+      <p class="mt-4 text-base md:text-lg text-slate-600 max-w-2xl mx-auto">
+        Suivez votre stock, analysez vos performances et retrouvez n'importe quel article en un scan.
+      </p>
     </section>
 
-    <!-- Hidden file inputs (triggered programmatically) -->
-    <input id="photo-upload-input" type="file" accept="image/*" class="hidden" />
-    <input id="edit-photo-upload-input" type="file" accept="image/*" class="hidden" />
+    <!-- 3 grandes cartes de navigation -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
 
-    <!-- FORM -->
-    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
-      <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-200 bg-slate-50/60">
-        <div class="flex items-center gap-2 min-w-0">
-          <div class="h-2 w-2 rounded-full bg-indigo-500"></div>
-          <h2 id="form-title" class="text-base font-semibold text-slate-900 truncate">Nouvel article</h2>
-        </div>
-        <button id="btn-clear" type="button" class="text-sm text-slate-600 hover:text-slate-900 font-medium">Effacer</button>
-      </div>
-
-      <form id="article-form" class="p-4 md:p-6">
-        <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
-          <div class="flex lg:block">
-            <div class="w-full max-w-[220px]">
-              <label class="block text-xs font-semibold text-slate-600 mb-2">Photo</label>
-              <div class="relative aspect-square w-full rounded-xl ring-1 ring-slate-200 bg-slate-50 overflow-hidden cursor-pointer group">
-                <div id="photo-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                  <div class="text-xs font-medium">Aucune photo</div>
-                  <div class="text-[11px] text-slate-400 mt-1">Filmez ou importez une photo</div>
-                </div>
-                <img id="photo-preview" class="hidden absolute inset-0 w-full h-full object-cover transition group-hover:scale-[1.02]" data-src="" alt="Photo de l'article" />
-              </div>
-            </div>
+      <!-- Carte 1 — Statistiques -->
+      <a href="/statistiques"
+        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 text-white p-6 md:p-7 shadow-lg ring-1 ring-violet-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
+        <div class="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl"></div>
+        <div class="relative">
+          <div class="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
           </div>
-
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-            <div>
-              <label for="numero_article" class="block text-xs font-semibold text-slate-600 mb-1">N° article</label>
-              <input id="numero_article" name="numero_article" type="text" required
-                placeholder="DECO-YYMMDD-XXXXXX"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="categorie" class="block text-xs font-semibold text-slate-600 mb-1">Catégorie</label>
-              <input id="categorie" name="categorie" type="text" list="list-categories" autocomplete="off"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-              <datalist id="list-categories">
-                <option value="Mobilier"></option>
-                <option value="Luminaire"></option>
-                <option value="Textile"></option>
-                <option value="Décoration murale"></option>
-                <option value="Vaisselle"></option>
-                <option value="Électroménager"></option>
-                <option value="Jardin"></option>
-                <option value="Rangement"></option>
-                <option value="Jouet"></option>
-                <option value="Électronique"></option>
-                <option value="Autre"></option>
-              </datalist>
-            </div>
-            <div>
-              <label for="code_barres" class="block text-xs font-semibold text-slate-600 mb-1">Code-barres (EAN/UPC)</label>
-              <input id="code_barres" name="code_barres" type="text" autocomplete="off" placeholder="3760123456789"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="marque" class="block text-xs font-semibold text-slate-600 mb-1">Marque</label>
-              <input id="marque" name="marque" type="text" autocomplete="off"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="couleur" class="block text-xs font-semibold text-slate-600 mb-1">Couleur</label>
-              <input id="couleur" name="couleur" type="text" autocomplete="off"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="taille" class="block text-xs font-semibold text-slate-600 mb-1">Taille / Dimensions</label>
-              <input id="taille" name="taille" type="text" autocomplete="off" placeholder="ex: 90x190 ou L120xH75 cm"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div class="col-span-2 md:col-span-3 lg:col-span-4">
-              <label for="description" class="block text-xs font-semibold text-slate-600 mb-1">Description</label>
-              <textarea id="description" name="description" rows="2"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none resize-none"></textarea>
-            </div>
-
-            <div class="col-span-2 md:col-span-3 lg:col-span-4 p-3 md:p-4 rounded-xl bg-slate-50 ring-1 ring-slate-200">
-              <label for="prix_vente" class="block text-xs font-semibold text-slate-600 mb-1">Prix de vente (€)</label>
-              <input id="prix_vente" name="prix_vente" type="number" min="0" step="0.01" inputmode="decimal"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-
-            <div class="col-span-2 md:col-span-3 lg:col-span-4 grid grid-cols-3 gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-slate-50 ring-1 ring-slate-200">
-              <div>
-                <label for="quantite_initiale" class="block text-xs font-semibold text-slate-600 mb-1">Quantité initiale</label>
-                <input id="quantite_initiale" name="quantite_initiale" type="number" min="0" step="1" value="1" inputmode="numeric"
-                  class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-              </div>
-              <div>
-                <label for="quantite" class="block text-xs font-semibold text-slate-600 mb-1">Quantité actuelle</label>
-                <input id="quantite" name="quantite" type="number" min="0" step="1" value="1" inputmode="numeric"
-                  class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-600 mb-1">Statut (auto)</label>
-                <div id="statut-preview" class="flex items-center h-[38px] px-1"></div>
-              </div>
-            </div>
-
+          <h2 class="text-xl md:text-2xl font-extrabold">Voir les statistiques</h2>
+          <p class="text-sm text-white/85 mt-2 leading-relaxed">
+            Valeur du stock, articles en rupture, top par valeur, répartition par catégorie. Bientôt : top ventes Shopify.
+          </p>
+          <div class="mt-5 inline-flex items-center gap-1 text-sm font-semibold opacity-90 group-hover:gap-2 transition-all">
+            Ouvrir le dashboard
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </div>
         </div>
+      </a>
 
-        <div class="mt-6 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-4 border-t border-slate-100">
-          <button type="submit" id="btn-submit"
-            class="inline-flex justify-center items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-            Ajouter à l'inventaire
-          </button>
+      <!-- Carte 2 — Inventaire -->
+      <a href="/inventaire"
+        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-600 text-white p-6 md:p-7 shadow-lg ring-1 ring-indigo-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
+        <div class="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl"></div>
+        <div class="relative">
+          <div class="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </div>
+          <h2 class="text-xl md:text-2xl font-extrabold">Gérer l'inventaire</h2>
+          <p class="text-sm text-white/85 mt-2 leading-relaxed">
+            Ajouter un article (caméra IA, scan code-barres, saisie), consulter, modifier, exporter en CSV / PDF.
+          </p>
+          <div class="mt-5 inline-flex items-center gap-1 text-sm font-semibold opacity-90 group-hover:gap-2 transition-all">
+            Voir l'inventaire
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </div>
         </div>
-      </form>
+      </a>
+
+      <!-- Carte 3 — Scan -->
+      <a href="/scan"
+        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 text-white p-6 md:p-7 shadow-lg ring-1 ring-amber-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
+        <div class="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl"></div>
+        <div class="relative">
+          <div class="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3"/><path d="M14 20h3"/><path d="M20 20v1"/></svg>
+          </div>
+          <h2 class="text-xl md:text-2xl font-extrabold">Scanner un produit</h2>
+          <p class="text-sm text-white/90 mt-2 leading-relaxed">
+            Scannez le QR ou code-barres : on retrouve directement l'article dans la base et vous pouvez l'éditer.
+          </p>
+          <div class="mt-5 inline-flex items-center gap-1 text-sm font-semibold opacity-95 group-hover:gap-2 transition-all">
+            Lancer un scan
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </div>
+        </div>
+      </a>
+
     </section>
 
-    <!-- INVENTORY TABLE -->
-    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
-      <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-200 bg-slate-50/60">
-        <div class="flex items-center gap-2">
-          <div class="h-2 w-2 rounded-full bg-emerald-500"></div>
-          <h2 class="text-base font-semibold text-slate-900">Inventaire</h2>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button id="btn-export-csv" type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-            CSV
-          </button>
-          <button id="btn-export-pdf" type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 12h1v4"/><path d="M9 12h3"/><path d="M16 12h-2v4h2"/><path d="M14 14h1.5"/></svg>
-            PDF
-          </button>
-          <button id="btn-clear-all" type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
-            Vider tout
-          </button>
-        </div>
+    <!-- Quick stat strip -->
+    <section id="quick-stats" class="mt-10 md:mt-14 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+      <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total articles</div>
+        <div class="mt-1 text-2xl md:text-3xl font-extrabold text-slate-900 tabular-nums" id="qs-total">—</div>
       </div>
-
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
-          <thead class="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
-            <tr>
-              <th class="px-3 py-2 text-left font-semibold">N° article</th>
-              <th class="px-3 py-2 text-left font-semibold">Photo</th>
-              <th class="px-3 py-2 text-left font-semibold">Catégorie</th>
-              <th class="px-3 py-2 text-left font-semibold">Marque</th>
-              <th class="px-3 py-2 text-left font-semibold">Couleur</th>
-              <th class="px-3 py-2 text-left font-semibold">Description</th>
-              <th class="px-3 py-2 text-right font-semibold">P. vente</th>
-              <th class="px-3 py-2 text-left font-semibold">Code-barres</th>
-              <th class="px-3 py-2 text-left font-semibold">Taille</th>
-              <th class="px-3 py-2 text-right font-semibold">Qté init.</th>
-              <th class="px-3 py-2 text-right font-semibold">Qté</th>
-              <th class="px-3 py-2 text-left font-semibold">Statut</th>
-              <th class="px-3 py-2 text-right font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="inventory-tbody" class="divide-y divide-slate-100 bg-white"></tbody>
-        </table>
-        <div id="inventory-loading" class="hidden py-16 px-6 text-center text-slate-400">
-          <div class="h-10 w-10 mx-auto mb-3 rounded-full border-4 border-slate-200 border-t-indigo-500 animate-spin"></div>
-          <p class="text-sm font-medium">Chargement de l'inventaire…</p>
-        </div>
-        <div id="inventory-empty" class="hidden py-16 px-6 text-center text-slate-400">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v3H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z"/><path d="M9 7V5h6v2"/></svg>
-          <p class="text-sm font-medium">Votre inventaire est vide</p>
-          <p class="text-xs text-slate-400 mt-1">Filmez un article ou scannez un code-barres pour commencer</p>
-        </div>
+      <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Valeur stock</div>
+        <div class="mt-1 text-2xl md:text-3xl font-extrabold text-slate-900 tabular-nums" id="qs-value">—</div>
+      </div>
+      <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Stock faible</div>
+        <div class="mt-1 text-2xl md:text-3xl font-extrabold text-amber-600 tabular-nums" id="qs-low">—</div>
+      </div>
+      <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">En rupture</div>
+        <div class="mt-1 text-2xl md:text-3xl font-extrabold text-red-600 tabular-nums" id="qs-out">—</div>
       </div>
     </section>
 
-    <footer class="pt-4 text-center text-xs text-slate-400">
-      DECO SHOP · Inventaire intelligent · Stockage SQLite3 · Export CSV / PDF
+    <footer class="pt-10 mt-10 border-t border-slate-200 text-center text-xs text-slate-400">
+      DECO SHOP · Inventaire intelligent · Supabase · IA Gemini
     </footer>
   </main>
 
-  <!-- SCANNER MODAL -->
-  <div id="scanner-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-0 md:p-4">
-    <div id="scanner-backdrop" class="absolute inset-0 bg-black/85 backdrop-blur-sm"></div>
-    <div class="relative w-full h-full md:h-auto md:max-h-[92vh] md:max-w-3xl md:rounded-2xl bg-slate-900 overflow-hidden shadow-2xl flex flex-col">
-      <div class="flex items-center justify-between gap-3 px-4 md:px-5 py-3 bg-slate-950/60 text-white border-b border-white/10">
-        <div class="flex items-center gap-2">
-          <div class="h-2 w-2 rounded-full bg-red-500 pulse-ring"></div>
-          <span id="scanner-mode-label" class="font-semibold text-sm">Capture photo</span>
-        </div>
-        <button id="btn-close-scanner" type="button"
-          class="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/10">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
-
-      <div class="relative flex-1 min-h-0 bg-black">
-        <video id="scanner-video" class="scanner-video" autoplay playsinline muted></video>
-
-        <!-- Barcode frame overlay -->
-        <div id="barcode-frame" class="hidden pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div class="relative w-[85%] max-w-md aspect-[4/1.2] rounded-xl border-2 border-amber-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] overflow-hidden">
-            <div class="absolute inset-x-0 top-0 h-0.5 bg-amber-400 scan-line shadow-[0_0_12px_rgba(251,191,36,0.8)]"></div>
-            <div class="absolute -top-1 -left-1 h-5 w-5 border-t-4 border-l-4 border-amber-400 rounded-tl-lg"></div>
-            <div class="absolute -top-1 -right-1 h-5 w-5 border-t-4 border-r-4 border-amber-400 rounded-tr-lg"></div>
-            <div class="absolute -bottom-1 -left-1 h-5 w-5 border-b-4 border-l-4 border-amber-400 rounded-bl-lg"></div>
-            <div class="absolute -bottom-1 -right-1 h-5 w-5 border-b-4 border-r-4 border-amber-400 rounded-br-lg"></div>
-          </div>
-        </div>
-
-        <!-- Loading overlay -->
-        <div id="scanner-loading" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-3">
-          <div class="h-14 w-14 rounded-full border-4 border-white/20 border-t-white animate-spin"></div>
-          <div id="scanner-loading-label" class="text-sm font-medium">Analyse IA en cours…</div>
-        </div>
-      </div>
-
-      <div class="px-4 md:px-5 py-3 md:py-4 bg-slate-950/70 text-white border-t border-white/10 flex flex-col sm:flex-row items-center gap-3">
-        <div id="scanner-status" class="text-xs md:text-sm text-white/80 flex-1 text-center sm:text-left">
-          Cadrez l'article, puis appuyez sur Capturer
-        </div>
-        <div class="flex items-center gap-2">
-          <button id="btn-switch-mode" type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs md:text-sm font-medium text-white hover:bg-white/10">
-            Passer en mode Code-barres
-          </button>
-          <button id="btn-capture" type="button"
-            class="inline-flex items-center gap-2 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-900 px-5 py-2.5 text-sm font-bold shadow-lg pulse-ring">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
-            Capturer
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- EDIT MODAL -->
-  <div id="edit-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-0 sm:p-4">
-    <div id="edit-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
-    <div class="relative w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-4xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
-
-      <!-- Header -->
-      <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-200 bg-slate-50/80">
-        <div class="flex items-center gap-2 min-w-0">
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </div>
-          <div class="min-w-0">
-            <h3 class="text-base font-semibold text-slate-900 truncate">Édition de l'article</h3>
-            <p class="text-xs text-slate-500 truncate">Réf. <span id="edit-modal-num" class="font-mono font-semibold text-slate-700">—</span></p>
-          </div>
-        </div>
-        <button id="btn-close-edit-modal" type="button"
-          class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-slate-100" aria-label="Fermer">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
-
-      <!-- Body (scrollable) -->
-      <form id="edit-form" class="flex-1 overflow-y-auto p-4 md:p-6">
-        <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-6">
-
-          <!-- Photo -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-2">Photo</label>
-            <div class="relative aspect-square w-full rounded-xl ring-1 ring-slate-200 bg-slate-50 overflow-hidden">
-              <div id="edit-photo-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                <div class="text-xs font-medium">Aucune photo</div>
-              </div>
-              <img id="edit-photo-preview" class="hidden absolute inset-0 w-full h-full object-cover" data-src="" alt="Photo de l'article" />
-            </div>
-            <button id="btn-edit-replace-photo" type="button"
-              class="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Importer une photo
-            </button>
-            <button id="btn-edit-remove-photo" type="button"
-              class="mt-2 hidden w-full text-xs text-red-600 hover:text-red-700 font-medium">Retirer la photo</button>
-          </div>
-
-          <!-- Fields -->
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-            <div>
-              <label for="edit-numero_article" class="block text-xs font-semibold text-slate-600 mb-1">N° article</label>
-              <input id="edit-numero_article" name="numero_article" type="text" required
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="edit-categorie" class="block text-xs font-semibold text-slate-600 mb-1">Catégorie</label>
-              <input id="edit-categorie" name="categorie" type="text" list="list-categories" autocomplete="off"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="edit-code_barres" class="block text-xs font-semibold text-slate-600 mb-1">Code-barres</label>
-              <input id="edit-code_barres" name="code_barres" type="text" autocomplete="off" placeholder="3760123456789"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="edit-marque" class="block text-xs font-semibold text-slate-600 mb-1">Marque</label>
-              <input id="edit-marque" name="marque" type="text" autocomplete="off"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="edit-couleur" class="block text-xs font-semibold text-slate-600 mb-1">Couleur</label>
-              <input id="edit-couleur" name="couleur" type="text" autocomplete="off"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div>
-              <label for="edit-taille" class="block text-xs font-semibold text-slate-600 mb-1">Taille / Dimensions</label>
-              <input id="edit-taille" name="taille" type="text" autocomplete="off" placeholder="ex: 90x190 ou L120xH75 cm"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-            <div class="col-span-2 md:col-span-3">
-              <label for="edit-description" class="block text-xs font-semibold text-slate-600 mb-1">Description</label>
-              <textarea id="edit-description" name="description" rows="3"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none resize-y"></textarea>
-            </div>
-
-            <div class="col-span-2 md:col-span-3 p-3 md:p-4 rounded-xl bg-slate-50 ring-1 ring-slate-200">
-              <label for="edit-prix_vente" class="block text-xs font-semibold text-slate-600 mb-1">Prix de vente (€)</label>
-              <input id="edit-prix_vente" name="prix_vente" type="number" min="0" step="0.01" inputmode="decimal"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-            </div>
-
-            <div class="col-span-2 md:col-span-3 grid grid-cols-3 gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-slate-50 ring-1 ring-slate-200">
-              <div>
-                <label for="edit-quantite_initiale" class="block text-xs font-semibold text-slate-600 mb-1">Quantité initiale</label>
-                <input id="edit-quantite_initiale" name="quantite_initiale" type="number" min="0" step="1" inputmode="numeric"
-                  class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-              </div>
-              <div>
-                <label for="edit-quantite" class="block text-xs font-semibold text-slate-600 mb-1">Quantité actuelle</label>
-                <input id="edit-quantite" name="quantite" type="number" min="0" step="1" inputmode="numeric"
-                  class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-600 mb-1">Statut (auto)</label>
-                <div id="edit-statut-preview" class="flex items-center h-[38px] px-1"></div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </form>
-
-      <!-- Footer (sticky) -->
-      <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4 border-t border-slate-200 bg-slate-50/80">
-        <button id="btn-edit-delete" type="button"
-          class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          Supprimer cet article
-        </button>
-        <div class="flex items-center justify-end gap-2">
-          <button id="btn-edit-cancel" type="button"
-            class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Annuler</button>
-          <button type="submit" form="edit-form" id="btn-edit-save"
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            Enregistrer
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TOAST HOST -->
-  <div id="toast-host" class="fixed top-4 right-4 z-[60] space-y-2 pointer-events-none"></div>
-
   <script>
-    import '../scripts/app.js';
+    // Quick stats fetch — lightweight, no scanner / form / table on this page.
+    (async () => {
+      try {
+        const res = await fetch('/api/articles');
+        if (!res.ok) return;
+        const articles = await res.json();
+        const total = articles.length;
+        const value = articles.reduce((s, a) => s + (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0), 0);
+        const low   = articles.filter((a) => a.statut === 'stock_faible').length;
+        const out   = articles.filter((a) => a.statut === 'rupture').length;
+        const fmtPrice = (v) => v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' €';
+        document.getElementById('qs-total').textContent = total;
+        document.getElementById('qs-value').textContent = fmtPrice(value);
+        document.getElementById('qs-low').textContent   = low;
+        document.getElementById('qs-out').textContent   = out;
+      } catch { /* offline / no DB — leave the dashes */ }
+    })();
   </script>
 </Layout>

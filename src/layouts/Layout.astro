@@ -1,14 +1,17 @@
 ---
 import "../styles/global.css";
+import Navbar from "../components/Navbar.astro";
 
 interface Props {
   title?: string;
   description?: string;
+  showNav?: boolean;
 }
 
 const {
   title = "DECO SHOP — Inventaire intelligent",
   description = "Inventaire intelligent avec caméra, analyse IA et scan code-barres.",
+  showNav = true,
 } = Astro.props;
 ---
 <!DOCTYPE html>
@@ -25,7 +28,10 @@ const {
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
     <title>{title}</title>
   </head>
-  <body class="antialiased">
+  <body class="antialiased bg-slate-50">
+    {showNav && <Navbar />}
     <slot />
+    <!-- Toast host (shared by every page) -->
+    <div id="toast-host" class="fixed top-4 right-4 z-[60] space-y-2 pointer-events-none"></div>
   </body>
 </html>

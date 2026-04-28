@@ -1,0 +1,143 @@
+---
+// Article edit modal — shared by /inventaire and /scan.
+// All wiring happens in scripts/app.js (defensive).
+---
+<div id="edit-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-0 sm:p-4">
+  <div id="edit-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+  <div class="relative w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-4xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
+
+    <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-200 bg-slate-50/80">
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </div>
+        <div class="min-w-0">
+          <h3 class="text-base font-semibold text-slate-900 truncate">Édition de l'article</h3>
+          <p class="text-xs text-slate-500 truncate">Réf. <span id="edit-modal-num" class="font-mono font-semibold text-slate-700">—</span></p>
+        </div>
+      </div>
+      <button id="btn-close-edit-modal" type="button"
+        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-slate-100" aria-label="Fermer">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+
+    <input id="edit-photo-upload-input" type="file" accept="image/*" class="hidden" />
+
+    <form id="edit-form" class="flex-1 overflow-y-auto p-4 md:p-6">
+      <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-6">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-2">Photo</label>
+          <div class="relative aspect-square w-full rounded-xl ring-1 ring-slate-200 bg-slate-50 overflow-hidden">
+            <div id="edit-photo-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+              <div class="text-xs font-medium">Aucune photo</div>
+            </div>
+            <img id="edit-photo-preview" class="hidden absolute inset-0 w-full h-full object-cover" data-src="" alt="Photo de l'article" />
+          </div>
+          <button id="btn-edit-replace-photo" type="button"
+            class="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Importer une photo
+          </button>
+          <button id="btn-edit-remove-photo" type="button"
+            class="mt-2 hidden w-full text-xs text-red-600 hover:text-red-700 font-medium">Retirer la photo</button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+          <div>
+            <label for="edit-numero_article" class="block text-xs font-semibold text-slate-600 mb-1">N° article</label>
+            <input id="edit-numero_article" name="numero_article" type="text" required
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+          </div>
+          <div>
+            <label for="edit-categorie" class="block text-xs font-semibold text-slate-600 mb-1">Catégorie</label>
+            <input id="edit-categorie" name="categorie" type="text" list="list-categories" autocomplete="off"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+          </div>
+          <div>
+            <label for="edit-code_barres" class="block text-xs font-semibold text-slate-600 mb-1">Code-barres</label>
+            <input id="edit-code_barres" name="code_barres" type="text" autocomplete="off" placeholder="3760123456789"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+          </div>
+          <div>
+            <label for="edit-marque" class="block text-xs font-semibold text-slate-600 mb-1">Marque</label>
+            <input id="edit-marque" name="marque" type="text" autocomplete="off"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+          </div>
+          <div>
+            <label for="edit-couleur" class="block text-xs font-semibold text-slate-600 mb-1">Couleur</label>
+            <input id="edit-couleur" name="couleur" type="text" autocomplete="off"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+          </div>
+          <div>
+            <label for="edit-taille" class="block text-xs font-semibold text-slate-600 mb-1">Taille / Dimensions</label>
+            <input id="edit-taille" name="taille" type="text" autocomplete="off" placeholder="ex: 90x190 ou L120xH75 cm"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+          </div>
+          <div class="col-span-2 md:col-span-3">
+            <label for="edit-description" class="block text-xs font-semibold text-slate-600 mb-1">Description</label>
+            <textarea id="edit-description" name="description" rows="3"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none resize-y"></textarea>
+          </div>
+
+          <div class="col-span-2 md:col-span-3 p-3 md:p-4 rounded-xl bg-slate-50 ring-1 ring-slate-200">
+            <label for="edit-prix_vente" class="block text-xs font-semibold text-slate-600 mb-1">Prix de vente (€)</label>
+            <input id="edit-prix_vente" name="prix_vente" type="number" min="0" step="0.01" inputmode="decimal"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+          </div>
+
+          <div class="col-span-2 md:col-span-3 grid grid-cols-3 gap-3 md:gap-4 p-3 md:p-4 rounded-xl bg-slate-50 ring-1 ring-slate-200">
+            <div>
+              <label for="edit-quantite_initiale" class="block text-xs font-semibold text-slate-600 mb-1">Quantité initiale</label>
+              <input id="edit-quantite_initiale" name="quantite_initiale" type="number" min="0" step="1" inputmode="numeric"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+            </div>
+            <div>
+              <label for="edit-quantite" class="block text-xs font-semibold text-slate-600 mb-1">Quantité actuelle</label>
+              <input id="edit-quantite" name="quantite" type="number" min="0" step="1" inputmode="numeric"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm tabular-nums shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Statut (auto)</label>
+              <div id="edit-statut-preview" class="flex items-center h-[38px] px-1"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </form>
+
+    <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4 border-t border-slate-200 bg-slate-50/80">
+      <button id="btn-edit-delete" type="button"
+        class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Supprimer cet article
+      </button>
+      <div class="flex items-center justify-end gap-2">
+        <button id="btn-edit-cancel" type="button"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Annuler</button>
+        <button type="submit" form="edit-form" id="btn-edit-save"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<datalist id="list-categories">
+  <option value="Mobilier"></option>
+  <option value="Luminaire"></option>
+  <option value="Textile"></option>
+  <option value="Décoration murale"></option>
+  <option value="Vaisselle"></option>
+  <option value="Électroménager"></option>
+  <option value="Jardin"></option>
+  <option value="Rangement"></option>
+  <option value="Jouet"></option>
+  <option value="Électronique"></option>
+  <option value="Autre"></option>
+</datalist>

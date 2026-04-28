@@ -1,4 +1,6 @@
-// Main application — wires UI events, scanner, form, table
+// Page-aware wiring. Each section attaches itself only when the matching
+// DOM nodes are present, so the same script can be loaded from /ajouter,
+// /inventaire and /scan without crashing on missing selectors.
 import {
   subscribe, getState, reload,
   createArticle, updateArticle, deleteArticle,
@@ -9,20 +11,20 @@ import { startBarcodeScanner, stopBarcodeScanner } from './barcode.js';
 import { analyzeImage, analyzeBarcode } from './gemini.js';
 import { downloadCSV } from './csv.js';
 import { downloadPDF } from './pdf.js';
+import {
+  $, escapeHtml, fmtPrice, renderStatusBadge, toast,
+} from './ui.js';
 
-const $  = (sel, root = document) => root.querySelector(sel);
-
-// Field names match the MCD schema (cf. mcd_mld.md §2 articles)
+// ─────────────────────────────────────────────────────────────────────────────
+// Field config (MCD schema, cf. mcd_mld.md §2)
+// ─────────────────────────────────────────────────────────────────────────────
 const TEXT_FIELDS = [
   'numero_article', 'categorie', 'marque', 'couleur', 'description',
   'code_barres', 'taille',
 ];
-const NUMBER_FIELDS = [
-  'prix_vente', 'quantite_initiale', 'quantite',
-];
+const NUMBER_FIELDS = ['prix_vente', 'quantite_initiale', 'quantite'];
 const FIELDS = [...TEXT_FIELDS, ...NUMBER_FIELDS];
 
-// Selectors for each of the 2 forms (create at top of page, edit in modal)
 const FORMS = {
   create: {
     form: '#article-form',
@@ -41,12 +43,15 @@ const FORMS = {
 };
 
 let scannerMode = 'photo';
-let editingArticleId = null; // id of the article being edited in the modal (null when modal closed)
+let editingArticleId = null;
 
-// ---------- Form helpers (work for both create + edit modes) ----------
+// ─────────────────────────────────────────────────────────────────────────────
+// Form helpers (work for both create + edit modes)
+// ─────────────────────────────────────────────────────────────────────────────
 function getFormData(mode = 'create') {
   const cfg = FORMS[mode];
   const form = $(cfg.form);
+  if (!form) return {};
   const out = {};
   FIELDS.forEach((k) => {
     const el = form.elements.namedItem(k);
@@ -58,18 +63,18 @@ function getFormData(mode = 'create') {
     }
     out[k] = v;
   });
-  out.photo_url = $(cfg.photo).dataset.src || '';
+  const photo = $(cfg.photo);
+  out.photo_url = photo?.dataset.src || '';
   return out;
 }
 
 function setFormData(data, mode = 'create') {
   const cfg = FORMS[mode];
   const form = $(cfg.form);
+  if (!form) return;
   FIELDS.forEach((k) => {
     const el = form.elements.namedItem(k);
     if (!el) return;
-    // For edit mode we always want to overwrite (including with empty string)
-    // For create mode we keep the previous behavior (only fill non-empty)
     if (mode === 'edit') {
       const v = (k in data && data[k] !== null && data[k] !== undefined) ? data[k] : '';
       el.value = v;
@@ -87,9 +92,9 @@ function updateStatutPreview(mode = 'create') {
   const cfg = FORMS[mode];
   const form = $(cfg.form);
   if (!form) return;
-  const qRaw = form.elements.namedItem('quantite')?.value;
   const target = $(cfg.statut);
   if (!target) return;
+  const qRaw = form.elements.namedItem('quantite')?.value;
   if (qRaw === '' || qRaw === null || qRaw === undefined) {
     target.innerHTML = '';
     return;
@@ -104,32 +109,43 @@ function setPhoto(dataUrl, mode = 'create') {
   const cfg = FORMS[mode];
   const img = $(cfg.photo);
   const placeholder = $(cfg.photoPlaceholder);
+  if (!img || !placeholder) return;
   img.src = dataUrl;
   img.dataset.src = dataUrl;
   img.classList.remove('hidden');
   placeholder.classList.add('hidden');
-  if (cfg.removePhotoBtn) $(cfg.removePhotoBtn).classList.remove('hidden');
+  if (cfg.removePhotoBtn) {
+    const btn = $(cfg.removePhotoBtn);
+    if (btn) btn.classList.remove('hidden');
+  }
 }
 
 function clearPhoto(mode = 'create') {
   const cfg = FORMS[mode];
   const img = $(cfg.photo);
+  const placeholder = $(cfg.photoPlaceholder);
+  if (!img || !placeholder) return;
   img.src = '';
   img.dataset.src = '';
   img.classList.add('hidden');
-  $(cfg.photoPlaceholder).classList.remove('hidden');
-  if (cfg.removePhotoBtn) $(cfg.removePhotoBtn).classList.add('hidden');
+  placeholder.classList.remove('hidden');
+  if (cfg.removePhotoBtn) {
+    const btn = $(cfg.removePhotoBtn);
+    if (btn) btn.classList.add('hidden');
+  }
 }
 
 async function clearForm() {
   const form = $('#article-form');
+  if (!form) return;
   form.reset();
   clearPhoto('create');
-  form.elements.namedItem('quantite_initiale').value = 1;
-  form.elements.namedItem('quantite').value = 1;
-  delete form.elements.namedItem('quantite').dataset.touched;
+  const qInit = form.elements.namedItem('quantite_initiale');
+  const q     = form.elements.namedItem('quantite');
+  if (qInit) qInit.value = 1;
+  if (q)     q.value = 1;
+  if (q)     delete q.dataset.touched;
   updateStatutPreview('create');
-  // Fetch next num async
   const num = await getNextNumArticle();
   if (num) {
     const el = form.elements.namedItem('numero_article');
@@ -137,19 +153,19 @@ async function clearForm() {
   }
 }
 
-// ---------- Edit modal ----------
+// ─────────────────────────────────────────────────────────────────────────────
+// Edit modal — exposed globally so /scan can open it from outside
+// ─────────────────────────────────────────────────────────────────────────────
 function openEditModal(article) {
   if (!article) return;
-  editingArticleId = article.id;
-  // Populate fields
-  setFormData(article, 'edit');
-  // Mark qty as 'touched' so we don't auto-overwrite from qty initiale
-  const q = $('#edit-form').elements.namedItem('quantite');
-  if (q) q.dataset.touched = '1';
-  // Update title with numero_article
-  $('#edit-modal-num').textContent = article.numero_article || '—';
-  // Show modal
   const modal = $('#edit-modal');
+  if (!modal) return;
+  editingArticleId = article.id;
+  setFormData(article, 'edit');
+  const q = $('#edit-form')?.elements.namedItem('quantite');
+  if (q) q.dataset.touched = '1';
+  const num = $('#edit-modal-num');
+  if (num) num.textContent = article.numero_article || '—';
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   document.body.style.overflow = 'hidden';
@@ -157,61 +173,39 @@ function openEditModal(article) {
 
 function closeEditModal() {
   const modal = $('#edit-modal');
+  if (!modal) return;
   modal.classList.add('hidden');
   modal.classList.remove('flex');
   document.body.style.overflow = '';
   editingArticleId = null;
 }
 
-// ---------- Toast ----------
-// Returns a handle with `update(msg)` and `dismiss()`.
-// Pass duration=0 to keep the toast on screen until dismiss() is called.
-function toast(msg, type = 'info', duration = 3600) {
-  const host = $('#toast-host');
-  const el = document.createElement('div');
-  const base = 'px-4 py-3 rounded-xl shadow-lg text-sm font-medium max-w-sm flex items-start gap-2 pointer-events-auto';
-  const color =
-    type === 'error'   ? 'bg-red-600 text-white' :
-    type === 'success' ? 'bg-emerald-600 text-white' :
-    type === 'warning' ? 'bg-amber-500 text-white' :
-                         'bg-slate-900 text-white';
-  el.className = `${base} ${color} toast-enter`;
-  el.textContent = msg;
-  host.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('toast-enter-active'));
+// Public API for other scripts (scan.js notably)
+window.__decoshop = window.__decoshop || {};
+window.__decoshop.openEditModal = openEditModal;
+window.__decoshop.closeEditModal = closeEditModal;
 
-  let dismissed = false;
-  const dismiss = () => {
-    if (dismissed) return;
-    dismissed = true;
-    el.style.transition = 'all 300ms ease';
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(-10px)';
-    setTimeout(() => el.remove(), 320);
-  };
-  let timer = null;
-  if (duration > 0) timer = setTimeout(dismiss, duration);
+// ─────────────────────────────────────────────────────────────────────────────
+// Scanner (camera + barcode) — used by /ajouter (create) AND /scan (search)
+// ─────────────────────────────────────────────────────────────────────────────
+// scanCallback :
+//   - 'create' (default) : capture/analyse remplit le formulaire #article-form
+//   - 'search' : un code-barres détecté déclenche window.__decoshop.onScanFound(code)
+let scannerCallback = 'create';
 
-  return {
-    update(newMsg) { if (!dismissed) el.textContent = newMsg; },
-    dismiss() { if (timer) clearTimeout(timer); dismiss(); },
-  };
-}
-
-// ---------- Scanner ----------
-async function openScanner(mode) {
+async function openScanner(mode, callback = 'create') {
   scannerMode = mode;
-  $('#scanner-modal').classList.remove('hidden');
-  $('#scanner-modal').classList.add('flex');
+  scannerCallback = callback;
+  const modal = $('#scanner-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
   document.body.style.overflow = 'hidden';
   updateScannerUI();
   const video = $('#scanner-video');
   try {
-    if (mode === 'photo') {
-      await startCamera(video);
-    } else {
-      await startBarcodeScanner(video, onBarcodeDetected);
-    }
+    if (mode === 'photo') await startCamera(video);
+    else                  await startBarcodeScanner(video, onBarcodeDetected);
   } catch (e) {
     toast(e.message || 'Erreur caméra', 'error');
     await closeScanner();
@@ -220,19 +214,29 @@ async function openScanner(mode) {
 
 function updateScannerUI() {
   const isPhoto = scannerMode === 'photo';
-  $('#scanner-mode-label').textContent = isPhoto ? 'Capture photo' : 'Scan code-barres';
-  $('#scanner-status').textContent = isPhoto
+  const label   = $('#scanner-mode-label');
+  const status  = $('#scanner-status');
+  const capture = $('#btn-capture');
+  const frame   = $('#barcode-frame');
+  const switchBtn = $('#btn-switch-mode');
+  if (label)  label.textContent = isPhoto ? 'Capture photo' : 'Scan code-barres';
+  if (status) status.textContent = isPhoto
     ? 'Cadrez l\'article, puis appuyez sur Capturer'
     : 'Pointez la caméra vers le code-barres';
-  $('#btn-capture').classList.toggle('hidden', !isPhoto);
-  $('#barcode-frame').classList.toggle('hidden', isPhoto);
-  $('#btn-switch-mode').textContent = isPhoto ? 'Passer en mode Code-barres' : 'Passer en mode Photo';
+  if (capture)   capture.classList.toggle('hidden', !isPhoto);
+  if (frame)     frame.classList.toggle('hidden', isPhoto);
+  if (switchBtn) switchBtn.textContent = isPhoto ? 'Passer en mode Code-barres' : 'Passer en mode Photo';
+  // In search mode we don't expose photo capture (it has no analyze workflow yet)
+  if (scannerCallback === 'search' && switchBtn) switchBtn.classList.add('hidden');
+  else if (switchBtn) switchBtn.classList.remove('hidden');
 }
 
 async function closeScanner() {
-  $('#scanner-modal').classList.add('hidden');
-  $('#scanner-modal').classList.remove('flex');
-  $('#scanner-loading').classList.add('hidden');
+  const modal = $('#scanner-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  $('#scanner-loading')?.classList.add('hidden');
   document.body.style.overflow = '';
   await stopCamera();
   await stopBarcodeScanner();
@@ -247,7 +251,7 @@ async function switchMode() {
   const video = $('#scanner-video');
   try {
     if (next === 'photo') await startCamera(video);
-    else await startBarcodeScanner(video, onBarcodeDetected);
+    else                  await startBarcodeScanner(video, onBarcodeDetected);
   } catch (e) {
     toast(e.message || 'Erreur caméra', 'error');
   }
@@ -257,12 +261,13 @@ async function captureAndAnalyze() {
   const video = $('#scanner-video');
   const overlay = $('#scanner-loading');
   const loadingLabel = $('#scanner-loading-label');
+  if (!video || !overlay) return;
   try {
-    loadingLabel.textContent = 'Capture en cours…';
+    if (loadingLabel) loadingLabel.textContent = 'Capture en cours…';
     overlay.classList.remove('hidden');
     const dataUrl = captureFrame(video);
     await stopCamera();
-    loadingLabel.textContent = 'Analyse IA en cours…';
+    if (loadingLabel) loadingLabel.textContent = 'Analyse IA en cours…';
     const analysis = await analyzeImage(dataUrl);
     setFormData({ ...analysis, photo_url: dataUrl }, 'create');
     toast('Article analysé avec succès', 'success');
@@ -274,11 +279,9 @@ async function captureAndAnalyze() {
   }
 }
 
-// Upload from disk: convert to data URL, run AI analysis, then prefill the form.
 let uploadProcessing = false;
 async function handlePhotoUpload(file) {
-  if (uploadProcessing) return;
-  if (!file) return;
+  if (uploadProcessing || !file) return;
   uploadProcessing = true;
   const btn = $('#btn-upload-photo');
   if (btn) btn.classList.add('opacity-60', 'pointer-events-none');
@@ -299,7 +302,6 @@ async function handlePhotoUpload(file) {
   }
 }
 
-// Replace photo in the edit modal (no AI, just swap the image).
 async function handleEditPhotoUpload(file) {
   if (!file) return;
   const btn = $('#btn-edit-replace-photo');
@@ -321,98 +323,101 @@ async function onBarcodeDetected(code) {
   barcodeProcessing = true;
   const overlay = $('#scanner-loading');
   const loadingLabel = $('#scanner-loading-label');
-  loadingLabel.textContent = `Code détecté: ${code} — recherche dans les bases publiques…`;
-  overlay.classList.remove('hidden');
+
+  // ─── Search mode (called from /scan) ────────────────────────────────────
+  // We DON'T hit external barcode databases. We just close the scanner and
+  // delegate the lookup to /scan's own JS (which queries our Supabase DB).
+  if (scannerCallback === 'search') {
+    await stopBarcodeScanner();
+    await closeScanner();
+    barcodeProcessing = false;
+    if (typeof window.__decoshop?.onScanFound === 'function') {
+      window.__decoshop.onScanFound(code);
+    }
+    return;
+  }
+
+  // ─── Create mode (called from /ajouter) ─────────────────────────────────
+  if (loadingLabel) loadingLabel.textContent = `Code détecté: ${code} — recherche…`;
+  overlay?.classList.remove('hidden');
   await stopBarcodeScanner();
   try {
     const { result, source, confidence, notice } = await analyzeBarcode(code);
     setFormData({ ...result, code_barres: result.code_barres || code }, 'create');
     const SOURCE_LABELS = {
-      openfoodfacts:    'Open Food Facts',
-      openbeautyfacts:  'Open Beauty Facts',
-      openproductsfacts:'Open Products Facts',
-      openpetfoodfacts: 'Open Pet Food Facts',
-      openlibrary:      'Open Library',
-      upcitemdb:        'UPCitemDB',
+      openfoodfacts: 'Open Food Facts', openbeautyfacts: 'Open Beauty Facts',
+      openproductsfacts: 'Open Products Facts', openpetfoodfacts: 'Open Pet Food Facts',
+      openlibrary: 'Open Library', upcitemdb: 'UPCitemDB',
     };
     const LLM_LABELS = { gemini: 'Gemini', groq: 'Groq Llama', mistral: 'Mistral' };
-
     if (confidence === 'high' && source && SOURCE_LABELS[source]) {
-      // Verified public-DB hit
       toast(`Produit identifié via ${SOURCE_LABELS[source]} (${code})`, 'success');
     } else if (confidence === 'low' && typeof source === 'string' && source.startsWith('llm:')) {
-      // LLM suggestion — must be verified
       const provider = source.slice(4);
-      const label = LLM_LABELS[provider] || provider;
-      toast(`⚠ Suggestion IA (${label}) pour ${code} — VÉRIFIEZ les champs avant validation.`, 'warning', 8000);
+      toast(`⚠ Suggestion IA (${LLM_LABELS[provider] || provider}) pour ${code} — vérifiez avant validation.`, 'warning', 8000);
     } else {
-      // Unknown / invalid checksum / rate-limited — manual entry
       toast(notice || `Code ${code} : produit non identifié — complétez manuellement.`, 'info', 6000);
     }
     await closeScanner();
   } catch (e) {
     toast(e.message || 'Erreur analyse code-barres', 'error');
-    overlay.classList.add('hidden');
+    overlay?.classList.add('hidden');
     try { await startBarcodeScanner($('#scanner-video'), onBarcodeDetected); } catch {}
   } finally {
     barcodeProcessing = false;
   }
 }
 
-// ---------- Table ----------
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
-}
+// Expose the scanner opener so /scan can request a barcode-only lookup.
+window.__decoshop.openScanner = openScanner;
 
-function fmtPrice(v) {
-  if (v === '' || v == null || Number.isNaN(Number(v))) return '';
-  return Number(v).toFixed(2).replace('.', ',') + ' €';
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Inventory table (used by /inventaire only)
+// ─────────────────────────────────────────────────────────────────────────────
+let tableFilter = { search: '', status: '' };
 
-function renderStatusBadge(statut) {
-  if (statut === 'rupture') {
-    return `<span class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-red-200">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/></svg>
-      Rupture
-    </span>`;
+function filteredArticles() {
+  const { articles } = getState();
+  const { search, status } = tableFilter;
+  let list = articles;
+  if (status) list = list.filter((a) => a.statut === status);
+  if (search) {
+    const q = search.toLowerCase();
+    list = list.filter((a) =>
+      [a.numero_article, a.code_barres, a.marque, a.couleur, a.description, a.categorie, a.taille]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q))
+    );
   }
-  if (statut === 'stock_faible') {
-    return `<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-300">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-      Stock faible
-    </span>`;
-  }
-  return `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-    En stock
-  </span>`;
+  return list;
 }
 
 function renderTable() {
-  const { articles, loading } = getState();
   const tbody = $('#inventory-tbody');
+  if (!tbody) return; // page n'a pas le tableau (par ex /ajouter)
+  const { loading } = getState();
+  const list = filteredArticles();
   const empty = $('#inventory-empty');
+  const loadingEl = $('#inventory-loading');
   const count = $('#inventory-count');
-  if (count) count.textContent = articles.length;
+  if (count) count.textContent = list.length;
 
-  if (loading && !articles.length) {
+  if (loading && !getState().articles.length) {
     tbody.innerHTML = '';
-    empty.classList.add('hidden');
-    $('#inventory-loading').classList.remove('hidden');
+    empty?.classList.add('hidden');
+    loadingEl?.classList.remove('hidden');
     return;
   }
-  $('#inventory-loading').classList.add('hidden');
+  loadingEl?.classList.add('hidden');
 
-  if (!articles.length) {
+  if (!list.length) {
     tbody.innerHTML = '';
-    empty.classList.remove('hidden');
+    empty?.classList.remove('hidden');
     return;
   }
-  empty.classList.add('hidden');
+  empty?.classList.add('hidden');
 
-  tbody.innerHTML = articles.map((a) => `
+  tbody.innerHTML = list.map((a) => `
     <tr class="hover:bg-slate-50 transition" data-id="${a.id}">
       <td class="px-3 py-2 whitespace-nowrap font-mono text-xs font-semibold text-slate-800">${escapeHtml(a.numero_article || '')}</td>
       <td class="px-3 py-2">${a.photo_url
@@ -436,52 +441,47 @@ function renderTable() {
   `).join('');
 }
 
-// ---------- Wire events ----------
-function wireEvents() {
-  $('#btn-open-photo').addEventListener('click', () => openScanner('photo'));
-  $('#btn-open-barcode').addEventListener('click', () => openScanner('barcode'));
-  $('#btn-close-scanner').addEventListener('click', closeScanner);
-  $('#btn-capture').addEventListener('click', captureAndAnalyze);
-  $('#btn-switch-mode').addEventListener('click', switchMode);
+// ─────────────────────────────────────────────────────────────────────────────
+// Wiring (defensive — each block checks for its anchors)
+// ─────────────────────────────────────────────────────────────────────────────
+function wireScannerModal() {
+  if (!$('#scanner-modal')) return;
+  $('#btn-close-scanner')?.addEventListener('click', closeScanner);
+  $('#btn-capture')?.addEventListener('click', captureAndAnalyze);
+  $('#btn-switch-mode')?.addEventListener('click', switchMode);
+  $('#scanner-backdrop')?.addEventListener('click', closeScanner);
+}
 
-  // Upload photo (create form) — opens OS file picker, then runs AI analysis
-  const uploadInput = $('#photo-upload-input');
-  $('#btn-upload-photo').addEventListener('click', () => uploadInput.click());
-  uploadInput.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-selecting the same file later
-    await handlePhotoUpload(file);
-  });
-
-  // Replace photo (edit modal) — opens OS file picker, no AI analysis
-  const editUploadInput = $('#edit-photo-upload-input');
-  $('#btn-edit-replace-photo').addEventListener('click', () => editUploadInput.click());
-  editUploadInput.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    await handleEditPhotoUpload(file);
-  });
-  $('#scanner-backdrop').addEventListener('click', closeScanner);
-
-  // Photo click to remove (create form)
-  $('#photo-preview').addEventListener('click', () => {
-    if ($('#photo-preview').dataset.src) {
-      if (confirm('Supprimer la photo ?')) clearPhoto('create');
-    }
-  });
-
-  // Form
+function wireCreateForm() {
   const form = $('#article-form');
+  if (!form) return;
 
-  // Sync quantite_initiale → quantite on create (as long as user hasn't touched quantite)
+  $('#btn-open-photo')?.addEventListener('click', () => openScanner('photo', 'create'));
+  $('#btn-open-barcode')?.addEventListener('click', () => openScanner('barcode', 'create'));
+
+  const uploadInput = $('#photo-upload-input');
+  if (uploadInput) {
+    $('#btn-upload-photo')?.addEventListener('click', () => uploadInput.click());
+    uploadInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      await handlePhotoUpload(file);
+    });
+  }
+
+  $('#photo-preview')?.addEventListener('click', () => {
+    const img = $('#photo-preview');
+    if (img.dataset.src && confirm('Supprimer la photo ?')) clearPhoto('create');
+  });
+
   const qInit = form.elements.namedItem('quantite_initiale');
-  const q = form.elements.namedItem('quantite');
-  qInit.addEventListener('input', () => {
-    if (!q.dataset.touched) q.value = qInit.value;
+  const q     = form.elements.namedItem('quantite');
+  qInit?.addEventListener('input', () => {
+    if (q && !q.dataset.touched) q.value = qInit.value;
     updateStatutPreview('create');
   });
-  q.addEventListener('input', () => {
-    q.dataset.touched = '1';
+  q?.addEventListener('input', () => {
+    if (q) q.dataset.touched = '1';
     updateStatutPreview('create');
   });
 
@@ -489,29 +489,40 @@ function wireEvents() {
     e.preventDefault();
     const submitBtn = $('#btn-submit');
     const data = getFormData('create');
-    submitBtn.disabled = true;
-    submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    }
     try {
       await createArticle(data);
       toast('Article ajouté à l\'inventaire', 'success');
-      await clearForm();
+      // Petit délai pour que le toast soit lisible avant la redirection
+      setTimeout(() => { window.location.href = '/inventaire'; }, 700);
     } catch (err) {
       toast(err.message || 'Erreur lors de l\'enregistrement', 'error');
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+      }
     }
   });
 
-  $('#btn-clear').addEventListener('click', async () => {
+  $('#btn-clear')?.addEventListener('click', async () => {
     const d = getFormData('create');
     const dirty = d.marque || d.couleur || d.description || d.photo_url;
     if (dirty && !confirm('Effacer le formulaire ?')) return;
     await clearForm();
   });
 
-  // Table actions: 'edit' opens the dedicated modal, 'delete' confirms + removes
-  $('#inventory-tbody').addEventListener('click', async (e) => {
+  // Initial fill on page load
+  clearForm();
+}
+
+function wireInventoryTable() {
+  const tbody = $('#inventory-tbody');
+  if (!tbody) return;
+
+  tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const id = btn.dataset.id;
@@ -531,74 +542,26 @@ function wireEvents() {
     }
   });
 
-  // ---- Edit modal events ----
-  const editForm = $('#edit-form');
-  $('#btn-close-edit-modal').addEventListener('click', closeEditModal);
-  $('#btn-edit-cancel').addEventListener('click', closeEditModal);
-  $('#edit-backdrop').addEventListener('click', closeEditModal);
-
-  // Auto-recalc statut in edit modal
-  editForm.elements.namedItem('quantite').addEventListener('input', () => updateStatutPreview('edit'));
-  editForm.elements.namedItem('quantite_initiale').addEventListener('input', () => updateStatutPreview('edit'));
-
-  // Photo preview click in edit modal -> remove photo
-  $('#edit-photo-preview').addEventListener('click', () => {
-    if ($('#edit-photo-preview').dataset.src && confirm('Retirer la photo ?')) {
-      clearPhoto('edit');
-    }
+  // Search + filter
+  $('#inventory-search')?.addEventListener('input', (e) => {
+    tableFilter.search = String(e.target.value || '').trim();
+    renderTable();
   });
-  $('#btn-edit-remove-photo').addEventListener('click', () => {
-    if (confirm('Retirer la photo ?')) clearPhoto('edit');
-  });
-
-  // Submit edit form -> updateArticle
-  editForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!editingArticleId) return;
-    const saveBtn = $('#btn-edit-save');
-    const data = getFormData('edit');
-    saveBtn.disabled = true;
-    saveBtn.classList.add('opacity-60', 'cursor-not-allowed');
-    try {
-      await updateArticle(editingArticleId, data);
-      toast('Article mis à jour', 'success');
-      closeEditModal();
-    } catch (err) {
-      toast(err.message || 'Erreur de mise à jour', 'error');
-    } finally {
-      saveBtn.disabled = false;
-      saveBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-    }
-  });
-
-  // Delete from edit modal
-  $('#btn-edit-delete').addEventListener('click', async () => {
-    if (!editingArticleId) return;
-    const num = $('#edit-modal-num').textContent;
-    if (!confirm(`Supprimer définitivement l'article ${num} ?`)) return;
-    const delBtn = $('#btn-edit-delete');
-    delBtn.disabled = true;
-    try {
-      await deleteArticle(editingArticleId);
-      toast('Article supprimé', 'success');
-      closeEditModal();
-    } catch (err) {
-      toast(err.message || 'Erreur de suppression', 'error');
-    } finally {
-      delBtn.disabled = false;
-    }
+  $('#inventory-filter-status')?.addEventListener('change', (e) => {
+    tableFilter.status = String(e.target.value || '');
+    renderTable();
   });
 
   // Exports
-  $('#btn-export-csv').addEventListener('click', () => {
-    const articles = getState().articles;
+  $('#btn-export-csv')?.addEventListener('click', () => {
+    const articles = filteredArticles();
     if (!articles.length) { toast('Aucun article à exporter', 'error'); return; }
     downloadCSV(articles);
     toast('Export CSV téléchargé', 'success');
   });
 
-  $('#btn-export-pdf').addEventListener('click', () => {
-    const articles = getState().articles;
+  $('#btn-export-pdf')?.addEventListener('click', () => {
+    const articles = filteredArticles();
     if (!articles.length) { toast('Aucun article à exporter', 'error'); return; }
     try {
       downloadPDF(articles);
@@ -608,7 +571,7 @@ function wireEvents() {
     }
   });
 
-  $('#btn-clear-all').addEventListener('click', async () => {
+  $('#btn-clear-all')?.addEventListener('click', async () => {
     if (!getState().articles.length) return;
     if (!confirm('Supprimer TOUT l\'inventaire ? Cette action est irréversible.')) return;
     try {
@@ -618,20 +581,103 @@ function wireEvents() {
       toast(err.message, 'error');
     }
   });
+}
 
-  // Escape to close modals
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    if (!$('#scanner-modal').classList.contains('hidden')) closeScanner();
-    if (!$('#edit-modal').classList.contains('hidden')) closeEditModal();
+function wireEditModal() {
+  const editForm = $('#edit-form');
+  if (!editForm) return;
+
+  $('#btn-close-edit-modal')?.addEventListener('click', closeEditModal);
+  $('#btn-edit-cancel')?.addEventListener('click', closeEditModal);
+  $('#edit-backdrop')?.addEventListener('click', closeEditModal);
+
+  editForm.elements.namedItem('quantite')?.addEventListener('input', () => updateStatutPreview('edit'));
+  editForm.elements.namedItem('quantite_initiale')?.addEventListener('input', () => updateStatutPreview('edit'));
+
+  const editUploadInput = $('#edit-photo-upload-input');
+  if (editUploadInput) {
+    $('#btn-edit-replace-photo')?.addEventListener('click', () => editUploadInput.click());
+    editUploadInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      await handleEditPhotoUpload(file);
+    });
+  }
+
+  $('#edit-photo-preview')?.addEventListener('click', () => {
+    if ($('#edit-photo-preview').dataset.src && confirm('Retirer la photo ?')) clearPhoto('edit');
+  });
+  $('#btn-edit-remove-photo')?.addEventListener('click', () => {
+    if (confirm('Retirer la photo ?')) clearPhoto('edit');
+  });
+
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!editingArticleId) return;
+    const saveBtn = $('#btn-edit-save');
+    const data = getFormData('edit');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    }
+    try {
+      await updateArticle(editingArticleId, data);
+      toast('Article mis à jour', 'success');
+      closeEditModal();
+      // Notify scan page (if active) so it refreshes its currently-shown card
+      if (typeof window.__decoshop?.onArticleUpdated === 'function') {
+        window.__decoshop.onArticleUpdated(editingArticleId);
+      }
+    } catch (err) {
+      toast(err.message || 'Erreur de mise à jour', 'error');
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+      }
+    }
+  });
+
+  $('#btn-edit-delete')?.addEventListener('click', async () => {
+    if (!editingArticleId) return;
+    const num = $('#edit-modal-num')?.textContent || '';
+    if (!confirm(`Supprimer définitivement l'article ${num} ?`)) return;
+    const delBtn = $('#btn-edit-delete');
+    if (delBtn) delBtn.disabled = true;
+    try {
+      await deleteArticle(editingArticleId);
+      toast('Article supprimé', 'success');
+      closeEditModal();
+    } catch (err) {
+      toast(err.message || 'Erreur de suppression', 'error');
+    } finally {
+      if (delBtn) delBtn.disabled = false;
+    }
   });
 }
 
-// ---------- Boot ----------
+function wireGlobalKeyboard() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!$('#scanner-modal')?.classList.contains('hidden')) closeScanner();
+    if (!$('#edit-modal')?.classList.contains('hidden'))    closeEditModal();
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Boot
+// ─────────────────────────────────────────────────────────────────────────────
 async function boot() {
-  wireEvents();
+  wireScannerModal();
+  wireCreateForm();
+  wireInventoryTable();
+  wireEditModal();
+  wireGlobalKeyboard();
+
+  // Only fetch the inventory list when the page actually needs it.
+  // /ajouter doesn't render the table but uses createArticle / nextNumArticle,
+  // so we still subscribe — it's cheap (one fetch) and helps prefill the next num.
   subscribe(renderTable);
-  await clearForm();
   await reload();
 }
 
