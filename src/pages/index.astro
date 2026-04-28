@@ -111,7 +111,8 @@ import Layout from '../layouts/Layout.astro';
       try {
         const res = await fetch('/api/articles');
         if (!res.ok) return;
-        const articles = await res.json();
+        // L'API renvoie { articles: [...] }, pas un tableau direct.
+        const { articles = [] } = await res.json();
         const total = articles.length;
         const value = articles.reduce((s, a) => s + (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0), 0);
         const low   = articles.filter((a) => a.statut === 'stock_faible').length;

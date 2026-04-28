@@ -15,7 +15,9 @@ function fmtInt(n) {
 async function fetchArticles() {
   const res = await fetch('/api/articles');
   if (!res.ok) throw new Error(`Erreur ${res.status}`);
-  return res.json();
+  // L'API renvoie { articles: [...] }
+  const { articles = [] } = await res.json();
+  return articles;
 }
 
 function computeKpi(articles) {

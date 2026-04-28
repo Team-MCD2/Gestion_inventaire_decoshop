@@ -140,7 +140,16 @@ export async function getArticle(id) {
   return decorate(data);
 }
 
-// MCD format : DECO-YYMMDD-XXXXXX (séquence quotidienne, 6 digits)
+// Format : DECO-YYMMDD-NNNNNN — la date sert d'horodatage, le NNNNNN
+// est tiré aléatoirement (000000-999999) avec vérification d'unicité côté DB.
+// On lit les numéros déjà utilisés (toutes dates confondues) et on retire
+// jusqu'à trouver un libre. Au-delà de 50 essais, on élargit à 9 digits.
+function randomDigits(n) {
+  let s = '';
+  for (let i = 0; i < n; i++) s += Math.floor(Math.random() * 10);
+  return s;
+}
+
 export async function nextNumArticle() {
   const today = new Date();
   const yy = String(today.getFullYear()).slice(2);
@@ -151,15 +160,23 @@ export async function nextNumArticle() {
   const db = getDb();
   const { data, error } = await db
     .from(TABLE)
-    .select('numero_article')
-    .like('numero_article', `${prefix}%`);
+    .select('numero_article');
   if (error) rethrow('Génération du numéro d\'article', error);
 
-  const nums = (data || [])
-    .map((r) => parseInt(String(r.numero_article).slice(prefix.length), 10))
-    .filter((n) => !Number.isNaN(n));
-  const next = nums.length ? Math.max(...nums) + 1 : 1;
-  return prefix + String(next).padStart(6, '0');
+  const taken = new Set((data || []).map((r) => String(r.numero_article)));
+
+  // 6 digits → 1 000 000 combinaisons possibles
+  for (let i = 0; i < 50; i++) {
+    const candidate = prefix + randomDigits(6);
+    if (!taken.has(candidate)) return candidate;
+  }
+  // Fallback rarissime : on saturerait l'espace 6-digits. On élargit à 9.
+  for (let i = 0; i < 50; i++) {
+    const candidate = prefix + randomDigits(9);
+    if (!taken.has(candidate)) return candidate;
+  }
+  // Ultime recours : timestamp millisecondes
+  return prefix + Date.now();
 }
 
 export async function createArticle(data) {
