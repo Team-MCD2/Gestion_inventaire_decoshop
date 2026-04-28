@@ -57,7 +57,51 @@ let lastGenerated = [];     // [{ article, code }] de la dernière génération
 
 // ─── Rendering ─────────────────────────────────────────────────────────────
 function setLoading(on) {
-  $('#loading')?.classList.toggle('hidden', !on);
+  $('#missing-loading')?.classList.toggle('hidden', !on);
+  $('#missing-table')?.classList.toggle('hidden', on);
+  
+  if (on) {
+    $('#missing-section')?.classList.remove('hidden');
+    $('#empty')?.classList.add('hidden');
+    $('#labels-section')?.classList.add('hidden');
+  }
+}
+
+// ─── Génération : barre de progression overlay ─────────────────────────────
+function showGenOverlay(total) {
+  const ov = $('#gen-overlay');
+  if (!ov) return;
+  const totalEl = $('#gen-total');
+  const doneEl = $('#gen-done');
+  const pctEl  = $('#gen-pct');
+  const bar    = $('#gen-bar');
+  const cur    = $('#gen-current');
+  if (totalEl) totalEl.textContent = String(total);
+  if (doneEl)  doneEl.textContent  = '0';
+  if (pctEl)   pctEl.textContent   = '0 %';
+  if (bar)     bar.style.width     = '0%';
+  if (cur)     cur.textContent     = '\u00a0'; // nbsp pour préserver la hauteur
+  ov.classList.remove('hidden');
+}
+
+function updateGenProgress(done, total, label) {
+  const doneEl = $('#gen-done');
+  const pctEl  = $('#gen-pct');
+  const bar    = $('#gen-bar');
+  const cur    = $('#gen-current');
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  if (doneEl) doneEl.textContent = String(done);
+  if (pctEl)  pctEl.textContent  = `${pct} %`;
+  if (bar)    bar.style.width    = `${pct}%`;
+  if (cur && label) cur.textContent = label;
+}
+
+function hideGenOverlay() {
+  $('#gen-overlay')?.classList.add('hidden');
+}
+
+function showPdfOverlay(on) {
+  $('#pdf-overlay')?.classList.toggle('hidden', !on);
 }
 
 function updateKPIs() {
@@ -91,6 +135,7 @@ function renderMissing() {
 
   empty?.classList.add('hidden');
   section?.classList.remove('hidden');
+  $('#missing-table')?.classList.remove('hidden');
   if (summary) summary.textContent = `${missing.length} article${missing.length > 1 ? 's' : ''} sans code-barres. Sélectionnez ceux à traiter (tous cochés par défaut).`;
   if (btnGen) btnGen.disabled = selected.size === 0;
   if (checkAll) checkAll.checked = selected.size === missing.length;
@@ -186,7 +231,15 @@ async function generateAll() {
   const toUpdate = missing.filter((a) => selected.has(a.id));
   const generated = []; // { article, code }
 
+  // Affiche l'overlay modal avec barre de progression
+  showGenOverlay(toUpdate.length);
+
+  let done = 0;
   for (const article of toUpdate) {
+    // Met à jour le label en cours AVANT le PUT pour montrer l'article courant
+    updateGenProgress(done, toUpdate.length,
+      `${article.numero_article || '—'} · ${article.description || article.marque || ''}`.slice(0, 60)
+    );
     try {
       const code = generateEAN13(taken);
       await updateArticleCode(article.id, code);
@@ -195,7 +248,13 @@ async function generateAll() {
       console.error('Erreur génération pour', article.numero_article, e);
       toast(`Échec sur ${article.numero_article} : ${e.message}`, 'error');
     }
+    done++;
+    updateGenProgress(done, toUpdate.length);
   }
+
+  // Petit délai pour laisser voir 100 % avant de fermer l'overlay
+  await new Promise((r) => setTimeout(r, 300));
+  hideGenOverlay();
 
   generating = false;
   if (btn) {
@@ -221,8 +280,12 @@ function renderLabels(items) {
   const section = $('#labels-section');
   if (!grid || !section) return;
 
-  grid.innerHTML = items.map((it, idx) => `
-    <div class="label-card flex flex-col items-center justify-center p-3 rounded-lg ring-1 ring-slate-200 bg-white">
+  grid.innerHTML = items.map((it, idx) => {
+    // Cascade : chaque carte apparaît avec un petit décalage (max 600 ms)
+    const delay = Math.min(idx * 30, 600);
+    return `
+    <div class="label-card flex flex-col items-center justify-center p-3 rounded-lg ring-1 ring-slate-200 bg-white"
+         style="animation-delay: ${delay}ms;">
       <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 truncate w-full text-center">
         ${escapeHtml(it.article.marque || it.article.categorie || 'DECO SHOP')}
       </div>
@@ -233,8 +296,8 @@ function renderLabels(items) {
       <div class="mt-1 font-mono text-[10px] text-slate-500 truncate w-full text-center">
         N° ${escapeHtml(it.article.numero_article)}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   // Render barcodes via JsBarcode
   items.forEach((it, idx) => {
@@ -265,6 +328,7 @@ function renderLabels(items) {
 // ─── PDF download (réutilise jsPDF déjà installé) ──────────────────────────
 async function downloadPdf() {
   if (!lastGenerated.length) { toast('Aucune étiquette à exporter', 'info'); return; }
+  showPdfOverlay(true);
   try {
     const { jsPDF } = await import('jspdf');
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -340,6 +404,8 @@ async function downloadPdf() {
   } catch (e) {
     console.error(e);
     toast(e.message || 'Erreur PDF', 'error');
+  } finally {
+    showPdfOverlay(false);
   }
 }
 
