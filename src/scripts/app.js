@@ -153,6 +153,31 @@ async function clearForm() {
   }
 }
 
+// Pré-remplit le formulaire à partir des query params (?code_barres=...&from=scan).
+// Utilisé pour le flux : /scan → article inconnu → "Oui, ajouter" → /ajouter?code_barres=XXX
+function prefillFromQuery() {
+  const form = $('#article-form');
+  if (!form) return;
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code_barres');
+  const fromScan = params.get('from') === 'scan';
+
+  if (code) {
+    const el = form.elements.namedItem('code_barres');
+    if (el) el.value = code;
+  }
+
+  if (fromScan) {
+    // Toast d'orientation : on indique clairement la suite à faire
+    const msg = code
+      ? `Code-barres ${code} prérempli. Filmez ou importez la photo, puis enregistrez.`
+      : `Filmez ou importez la photo de l'article, puis enregistrez.`;
+    toast(msg, 'info', 6000);
+    // Met le focus sur le bouton "Filmer l'article" pour guider visuellement
+    setTimeout(() => $('#btn-open-photo')?.focus(), 200);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Edit modal — exposed globally so /scan can open it from outside
 // ─────────────────────────────────────────────────────────────────────────────
@@ -514,8 +539,9 @@ function wireCreateForm() {
     await clearForm();
   });
 
-  // Initial fill on page load
-  clearForm();
+  // Initial fill on page load — d'abord le N° auto, puis le code-barres venant
+  // d'un éventuel ?code_barres=... (flux /scan → /ajouter).
+  clearForm().then(() => prefillFromQuery());
 }
 
 function wireInventoryTable() {

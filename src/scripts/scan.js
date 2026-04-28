@@ -18,33 +18,71 @@ function showState(state) {
   $('#scan-result')?.classList.toggle('hidden', state !== 'result');
 }
 
+// EAN/UPC : 8 à 14 chiffres uniquement. Pas de DECO-..., pas de lettres.
+function looksLikeBarcode(s) {
+  return /^\d{8,14}$/.test(String(s || '').trim());
+}
+
 function renderNotFound(query) {
   const result = $('#scan-result');
   if (!result) return;
   showState('result');
+
+  const isBarcode = looksLikeBarcode(query);
+  // Si c'est un code-barres, on l'envoie à /ajouter en query param.
+  // Sinon (ex: DECO-260428-XXXXXX tapé), on laisse /ajouter générer son propre numéro.
+  const ajouterHref = isBarcode
+    ? `/ajouter?code_barres=${encodeURIComponent(query)}&from=scan`
+    : `/ajouter?from=scan`;
+
   result.innerHTML = `
-    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-6 md:p-8 text-center">
-      <div class="mx-auto h-16 w-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v3"/><path d="M11 14h.01"/></svg>
+    <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
+      <!-- Header info -->
+      <div class="p-6 md:p-8 text-center border-b border-slate-100">
+        <div class="mx-auto h-16 w-16 rounded-2xl bg-amber-50 ring-1 ring-amber-200 flex items-center justify-center text-amber-500 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <h2 class="text-lg font-semibold text-slate-900">Article inconnu de l'inventaire</h2>
+        <p class="text-sm text-slate-500 mt-1">
+          Aucun article ne correspond à <span class="font-mono font-semibold text-slate-700">${escapeHtml(query)}</span>.
+        </p>
       </div>
-      <h2 class="text-lg font-semibold text-slate-900">Article introuvable</h2>
-      <p class="text-sm text-slate-500 mt-1">
-        Aucun article ne correspond à <span class="font-mono font-semibold text-slate-700">${escapeHtml(query)}</span> dans la base.
-      </p>
-      <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
-        <a href="/ajouter" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-          Créer cet article
-        </a>
-        <button id="btn-scan-retry" type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-          Recommencer
-        </button>
+
+      <!-- CTA — ajouter cet article -->
+      <div class="p-6 md:p-8 bg-gradient-to-br from-indigo-50 to-blue-50">
+        <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div class="flex-1">
+            <h3 class="text-base font-bold text-slate-900">
+              Voulez-vous l'ajouter à l'inventaire ?
+            </h3>
+            <p class="text-sm text-slate-600 mt-1">
+              ${isBarcode
+                ? `On prérempli le code-barres pour vous. Il ne vous restera qu'à <strong class="font-semibold text-slate-900">filmer le produit</strong> puis <strong class="font-semibold text-slate-900">enregistrer</strong>.`
+                : `Le numéro d'article sera généré automatiquement. Il vous restera juste à <strong class="font-semibold text-slate-900">filmer le produit</strong> et <strong class="font-semibold text-slate-900">enregistrer</strong>.`}
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 shrink-0">
+            <button id="btn-scan-retry" type="button"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              Non, recommencer
+            </button>
+            <a href="${ajouterHref}"
+              class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+              Oui, ajouter cet article
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   `;
   $('#btn-scan-retry')?.addEventListener('click', () => {
-    $('#scan-input').value = '';
-    $('#scan-input').focus();
+    const input = $('#scan-input');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    lastQuery = '';
     showState('empty');
   });
 }
