@@ -622,15 +622,68 @@ function wireInventoryTable() {
     }
   });
 
-  $('#btn-clear-all')?.addEventListener('click', async () => {
-    if (!getState().articles.length) return;
-    if (!confirm('Supprimer TOUT l\'inventaire ? Cette action est irréversible.')) return;
+  // ─── "Vider l'inventaire" : modale de confirmation avec saisie obligatoire ──
+  // Action irréversible → on exige que l'utilisateur tape "VIDER" pour activer
+  // le bouton de confirmation. Échap, clic backdrop ou Annuler ferme la modale.
+  const clearModal       = $('#confirm-clear-modal');
+  const clearInput       = $('#confirm-clear-input');
+  const clearBtnOk       = $('#btn-confirm-clear-ok');
+  const clearBtnCancel   = $('#btn-confirm-clear-cancel');
+  const clearBackdrop    = $('#confirm-clear-backdrop');
+  const clearCountLabel  = $('#confirm-clear-count');
+
+  function openClearModal() {
+    if (!clearModal || !clearInput || !clearBtnOk) return;
+    if (clearCountLabel) clearCountLabel.textContent = String(getState().articles.length);
+    clearInput.value = '';
+    clearBtnOk.disabled = true;
+    clearModal.classList.remove('hidden');
+    clearModal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => clearInput.focus(), 50);
+  }
+
+  function closeClearModal() {
+    if (!clearModal) return;
+    clearModal.classList.add('hidden');
+    clearModal.classList.remove('flex');
+    document.body.style.overflow = '';
+  }
+
+  clearInput?.addEventListener('input', () => {
+    if (!clearBtnOk) return;
+    clearBtnOk.disabled = clearInput.value.trim().toUpperCase() !== 'VIDER';
+  });
+
+  // Enter dans l'input = valider si activé
+  clearInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !clearBtnOk?.disabled) {
+      e.preventDefault();
+      clearBtnOk?.click();
+    }
+  });
+
+  clearBtnCancel?.addEventListener('click', closeClearModal);
+  clearBackdrop?.addEventListener('click', closeClearModal);
+
+  clearBtnOk?.addEventListener('click', async () => {
+    if (clearBtnOk.disabled) return;
+    clearBtnOk.disabled = true;
+    closeClearModal();
     try {
       await clearAll();
       toast('Inventaire vidé');
     } catch (err) {
       toast(err.message, 'error');
     }
+  });
+
+  $('#btn-clear-all')?.addEventListener('click', () => {
+    if (!getState().articles.length) {
+      toast('L\'inventaire est déjà vide', 'info');
+      return;
+    }
+    openClearModal();
   });
 }
 
@@ -712,6 +765,12 @@ function wireGlobalKeyboard() {
     if (e.key !== 'Escape') return;
     if (!$('#scanner-modal')?.classList.contains('hidden')) closeScanner();
     if (!$('#edit-modal')?.classList.contains('hidden'))    closeEditModal();
+    const cc = $('#confirm-clear-modal');
+    if (cc && !cc.classList.contains('hidden')) {
+      cc.classList.add('hidden');
+      cc.classList.remove('flex');
+      document.body.style.overflow = '';
+    }
   });
 }
 
