@@ -490,8 +490,12 @@ function openBarcodeModal(article) {
   const modal = $('#barcode-modal');
   const title = $('#modal-title');
   const subtitle = $('#modal-subtitle');
+  const container = $('#modal-barcode-container');
+  if (!modal || !container) return;
+
+  // Recreate SVG element each time so JsBarcode always gets a fresh target
+  container.innerHTML = '<svg id="modal-barcode-svg"></svg>';
   const svg = $('#modal-barcode-svg');
-  if (!modal || !svg) return;
 
   if (title) title.textContent = article.description || article.numero_article || 'Code-barres';
   if (subtitle) subtitle.textContent = `${article.marque || ''} · N° ${article.numero_article || ''} · ${article.code_barres}`;
@@ -503,7 +507,7 @@ function openBarcodeModal(article) {
       margin: 10, background: '#ffffff', lineColor: '#0f172a',
     });
   } catch (e) {
-    svg.outerHTML = `<div class="text-red-600 text-sm">${escapeHtml(article.code_barres)}</div>`;
+    container.innerHTML = `<div class="text-red-600 text-sm">${escapeHtml(article.code_barres)}</div>`;
   }
   modal.classList.remove('hidden');
 }
