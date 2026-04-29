@@ -2,6 +2,7 @@
 // génère un EAN-13 conforme GS1 France (préfixe 300-379, checksum mod-10),
 // met à jour la base, affiche les étiquettes prêtes à imprimer.
 import JsBarcode from 'jsbarcode';
+import JSZip from 'jszip';
 import { $, escapeHtml, toast } from './ui.js';
 
 // ─── EAN-13 GS1 France ─────────────────────────────────────────────────────
@@ -55,6 +56,27 @@ let selected = new Set();   // ids sélectionnés
 let generating = false;
 let lastGenerated = [];     // [{ article, code }] de la dernière génération
 let currentFilter = 'missing';
+let modalArticle = null; // article currently shown in modal
+
+// Renders a barcode on an offscreen canvas and returns its PNG data URL
+function barcodeToPngDataUrl(code) {
+  const canvas = document.createElement('canvas');
+  JsBarcode(canvas, code, {
+    format: 'EAN13', width: 2, height: 60,
+    displayValue: true, fontSize: 16, margin: 10,
+    background: '#ffffff', lineColor: '#0f172a',
+  });
+  return canvas.toDataURL('image/png');
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 // ─── Rendering ─────────────────────────────────────────────────────────────
 function setLoading(on) {
@@ -137,6 +159,8 @@ function renderTable() {
   const empty = $('#empty');
   const btnGen = $('#btn-generate');
   const btnExport = $('#btn-export-selected');
+  const btnDownloadImg = $('#btn-download-images');
+  const btnDownloadLabel = $('#btn-download-images-label');
   const checkAll = $('#check-all');
   if (!tbody) return;
 
@@ -146,6 +170,7 @@ function renderTable() {
     if (summary) summary.textContent = currentFilter === 'missing' ? 'Aucun article sans code-barres.' : 'Aucun article trouvé.';
     if (btnGen) btnGen.disabled = true;
     if (btnExport) btnExport.disabled = true;
+    if (btnDownloadImg) btnDownloadImg.disabled = true;
     return;
   }
 
@@ -157,22 +182,38 @@ function renderTable() {
     const text = currentFilter === 'missing' ? 'sans code-barres' : (currentFilter === 'with' ? 'avec code-barres' : 'au total');
     summary.textContent = `${filteredArticles.length} article${filteredArticles.length > 1 ? 's' : ''} ${text}. Sélectionnez ceux à traiter.`;
   }
-  
-  const hasMissingInSelection = Array.from(selected).some(id => {
-    const a = allArticles.find(x => x.id === id);
-    return a && (!a.code_barres || !String(a.code_barres).trim());
-  });
-  
-  const hasCodeInSelection = Array.from(selected).some(id => {
-    const a = allArticles.find(x => x.id === id);
-    return a && a.code_barres && String(a.code_barres).trim();
-  });
 
-  if (btnGen) btnGen.disabled = !hasMissingInSelection;
-  if (btnExport) btnExport.disabled = !hasCodeInSelection;
-  if (checkAll) checkAll.checked = selected.size === filteredArticles.length && filteredArticles.length > 0;
+  function updateButtonStates() {
+    const hasMissing = Array.from(selected).some(id => {
+      const a = allArticles.find(x => x.id === id);
+      return a && (!a.code_barres || !String(a.code_barres).trim());
+    });
+    const codeCount = Array.from(selected).filter(id => {
+      const a = allArticles.find(x => x.id === id);
+      return a && a.code_barres && String(a.code_barres).trim();
+    }).length;
 
-  tbody.innerHTML = filteredArticles.map((a) => `
+    if (btnGen) btnGen.disabled = !hasMissing;
+    if (btnExport) btnExport.disabled = codeCount === 0;
+    if (btnDownloadImg) btnDownloadImg.disabled = codeCount === 0;
+    if (btnDownloadLabel) btnDownloadLabel.textContent = codeCount > 1 ? `Télécharger ${codeCount} Images` : 'Télécharger Image';
+    if (checkAll) checkAll.checked = selected.size === filteredArticles.length && filteredArticles.length > 0;
+  }
+
+  updateButtonStates();
+
+  const eyeIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const dlIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>`;
+
+  tbody.innerHTML = filteredArticles.map((a) => {
+    const hasCode = a.code_barres && String(a.code_barres).trim();
+    const actions = hasCode
+      ? `<div class="flex items-center justify-center gap-1">
+           <button type="button" class="barcode-action-btn view-btn" data-action="view" data-id="${escapeHtml(a.id)}" title="Visualiser">${eyeIcon}</button>
+           <button type="button" class="barcode-action-btn download-btn" data-action="download" data-id="${escapeHtml(a.id)}" title="Télécharger">${dlIcon}</button>
+         </div>`
+      : `<span class="text-xs text-slate-400">—</span>`;
+    return `
     <tr class="hover:bg-slate-50">
       <td class="px-3 py-2">
         <input type="checkbox" class="row-check rounded border-slate-300"
@@ -189,29 +230,30 @@ function renderTable() {
       </td>
       <td class="px-3 py-2 text-slate-700">${escapeHtml(a.marque || '—')}</td>
       <td class="px-3 py-2 text-slate-700">${escapeHtml(a.categorie || '—')}</td>
-      <td class="px-3 py-2 font-mono text-xs font-semibold text-slate-600">${a.code_barres ? escapeHtml(a.code_barres) : '—'}</td>
+      <td class="px-3 py-2 font-mono text-xs font-semibold text-slate-600">${hasCode ? escapeHtml(a.code_barres) : '—'}</td>
       <td class="px-3 py-2 text-right tabular-nums font-semibold">${a.quantite ?? 0}</td>
-    </tr>
-  `).join('');
+      <td class="px-3 py-2 text-center">${actions}</td>
+    </tr>`;
+  }).join('');
 
   // Wire checkboxes
   tbody.querySelectorAll('.row-check').forEach((el) => {
     el.addEventListener('change', () => {
       const id = el.getAttribute('data-id');
       if (el.checked) selected.add(id); else selected.delete(id);
-      
-      const hasMissing = Array.from(selected).some(sId => {
-        const a = allArticles.find(x => x.id === sId);
-        return a && (!a.code_barres || !String(a.code_barres).trim());
-      });
-      const hasCode = Array.from(selected).some(sId => {
-        const a = allArticles.find(x => x.id === sId);
-        return a && a.code_barres && String(a.code_barres).trim();
-      });
+      updateButtonStates();
+    });
+  });
 
-      if (btnGen) btnGen.disabled = !hasMissing;
-      if (btnExport) btnExport.disabled = !hasCode;
-      if (checkAll) checkAll.checked = selected.size === filteredArticles.length && filteredArticles.length > 0;
+  // Wire action buttons (view / download)
+  tbody.querySelectorAll('.barcode-action-btn').forEach((el) => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      const action = el.dataset.action;
+      const article = allArticles.find(x => x.id === id);
+      if (!article || !article.code_barres) return;
+      if (action === 'view') openBarcodeModal(article);
+      if (action === 'download') downloadSingleBarcode(article);
     });
   });
 }
@@ -442,14 +484,104 @@ function exportSelectedPdf() {
   downloadPdf(items);
 }
 
+// ─── Barcode modal (visualize) ──────────────────────────────────────────────
+function openBarcodeModal(article) {
+  modalArticle = article;
+  const modal = $('#barcode-modal');
+  const title = $('#modal-title');
+  const subtitle = $('#modal-subtitle');
+  const svg = $('#modal-barcode-svg');
+  if (!modal || !svg) return;
+
+  if (title) title.textContent = article.description || article.numero_article || 'Code-barres';
+  if (subtitle) subtitle.textContent = `${article.marque || ''} · N° ${article.numero_article || ''} · ${article.code_barres}`;
+
+  try {
+    JsBarcode(svg, article.code_barres, {
+      format: 'EAN13', width: 2.5, height: 80,
+      displayValue: true, fontSize: 18, textMargin: 4,
+      margin: 10, background: '#ffffff', lineColor: '#0f172a',
+    });
+  } catch (e) {
+    svg.outerHTML = `<div class="text-red-600 text-sm">${escapeHtml(article.code_barres)}</div>`;
+  }
+  modal.classList.remove('hidden');
+}
+
+function closeBarcodeModal() {
+  $('#barcode-modal')?.classList.add('hidden');
+  modalArticle = null;
+}
+
+function downloadSingleBarcode(article) {
+  try {
+    const dataUrl = barcodeToPngDataUrl(article.code_barres);
+    const name = (article.numero_article || article.code_barres).replace(/[^a-zA-Z0-9_-]/g, '_');
+    downloadDataUrl(dataUrl, `code-barres-${name}.png`);
+    toast('Image téléchargée', 'success');
+  } catch (e) {
+    toast('Erreur lors du téléchargement', 'error');
+  }
+}
+
+async function downloadSelectedImages() {
+  const items = Array.from(selected)
+    .map(id => allArticles.find(a => a.id === id))
+    .filter(a => a && a.code_barres && String(a.code_barres).trim());
+
+  if (!items.length) { toast('Aucun article avec code-barres sélectionné', 'warning'); return; }
+
+  // Single image → direct download
+  if (items.length === 1) {
+    downloadSingleBarcode(items[0]);
+    return;
+  }
+
+  // Multiple → ZIP
+  showPdfOverlay(true);
+  try {
+    const zip = new JSZip();
+    for (const a of items) {
+      const dataUrl = barcodeToPngDataUrl(a.code_barres);
+      const base64 = dataUrl.split(',')[1];
+      const name = (a.numero_article || a.code_barres).replace(/[^a-zA-Z0-9_-]/g, '_');
+      zip.file(`code-barres-${name}.png`, base64, { base64: true });
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const ts = new Date().toISOString().slice(0, 10);
+    downloadDataUrl(url, `codes-barres-deco-shop-${ts}.zip`);
+    URL.revokeObjectURL(url);
+    toast(`${items.length} images téléchargées (ZIP)`, 'success');
+  } catch (e) {
+    console.error(e);
+    toast(e.message || 'Erreur ZIP', 'error');
+  } finally {
+    showPdfOverlay(false);
+  }
+}
+
 // ─── Wiring ────────────────────────────────────────────────────────────────
 function wire() {
   $('#filter-status')?.addEventListener('change', applyFilter);
   $('#btn-refresh')?.addEventListener('click', fetchArticles);
   $('#btn-generate')?.addEventListener('click', generateAll);
   $('#btn-export-selected')?.addEventListener('click', exportSelectedPdf);
+  $('#btn-download-images')?.addEventListener('click', downloadSelectedImages);
   $('#btn-print')?.addEventListener('click', () => window.print());
   $('#btn-download-pdf')?.addEventListener('click', () => downloadPdf(lastGenerated));
+
+  // Modal events
+  $('#modal-close')?.addEventListener('click', closeBarcodeModal);
+  $('#barcode-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'barcode-modal') closeBarcodeModal();
+  });
+  $('#modal-download-png')?.addEventListener('click', () => {
+    if (modalArticle) downloadSingleBarcode(modalArticle);
+  });
+  $('#modal-download-pdf')?.addEventListener('click', () => {
+    if (modalArticle) downloadPdf([{ article: modalArticle, code: modalArticle.code_barres }]);
+  });
 
   $('#check-all')?.addEventListener('change', (e) => {
     if (e.target.checked) selected = new Set(filteredArticles.map((a) => a.id));

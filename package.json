@@ -20,7 +20,8 @@
     "chart.js": "^4.5.1",
     "jsbarcode": "^3.12.3",
     "jspdf": "^2.5.2",
-    "jspdf-autotable": "^3.8.4"
+    "jspdf-autotable": "^3.8.4",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
