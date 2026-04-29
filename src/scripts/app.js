@@ -4,7 +4,7 @@
 import {
   subscribe, getState, reload,
   createArticle, updateArticle, deleteArticle,
-  clearAll, getNextNumArticle,
+  clearAll, getNextNumArticle, startAutoSync, stopAutoSync
 } from './state.js';
 import { startCamera, stopCamera, captureFrame, fileToImageDataUrl } from './camera.js';
 import { startBarcodeScanner, stopBarcodeScanner } from './barcode.js';
@@ -580,7 +580,21 @@ function wireCreateForm() {
 
   // Initial fill on page load — d'abord le N° auto, puis le code-barres venant
   // d'un éventuel ?code_barres=... (flux /scan → /ajouter).
-  clearForm().then(() => prefillFromQuery());
+  let lastAutoNum = '';
+  clearForm().then(() => {
+    prefillFromQuery();
+    const el = form.elements.namedItem('numero_article');
+    if (el) lastAutoNum = el.value;
+
+    // Polling auto-update for numero_article to avoid conflicts
+    setInterval(async () => {
+      const num = await getNextNumArticle();
+      if (num && el && el.value === lastAutoNum && num !== lastAutoNum) {
+        el.value = num;
+        lastAutoNum = num;
+      }
+    }, 5000);
+  });
 }
 
 function wireInventoryTable() {
@@ -711,6 +725,9 @@ function wireInventoryTable() {
     }
     openClearModal();
   });
+
+  // Start real-time sync for the inventory table
+  startAutoSync(5000);
 }
 
 function wireEditModal() {

@@ -565,6 +565,30 @@ async function downloadSelectedImages() {
   }
 }
 
+let syncInterval = null;
+let lastSyncStatus = null;
+
+function startAutoSync() {
+  if (syncInterval) return;
+  syncInterval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/sync-status');
+      if (!res.ok) return;
+      const status = await res.json();
+      if (!lastSyncStatus) {
+        lastSyncStatus = status;
+        return;
+      }
+      if (status.count !== lastSyncStatus.count || status.last_updated !== lastSyncStatus.last_updated) {
+        lastSyncStatus = status;
+        await fetchArticles();
+      }
+    } catch (e) {
+      // Ignore errors for silent background sync
+    }
+  }, 5000);
+}
+
 // ─── Wiring ────────────────────────────────────────────────────────────────
 function wire() {
   $('#filter-status')?.addEventListener('change', applyFilter);
@@ -597,6 +621,7 @@ function wire() {
 function boot() {
   wire();
   fetchArticles();
+  startAutoSync();
 }
 
 if (document.readyState === 'loading') {

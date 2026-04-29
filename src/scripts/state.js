@@ -87,3 +87,31 @@ export async function clearAll() {
   emit();
 }
 
+let syncInterval = null;
+let lastSyncStatus = null;
+
+export function startAutoSync(intervalMs = 5000) {
+  if (syncInterval) return;
+  syncInterval = setInterval(async () => {
+    try {
+      const status = await api('/api/sync-status');
+      if (!lastSyncStatus) {
+        lastSyncStatus = status;
+        return;
+      }
+      if (status.count !== lastSyncStatus.count || status.last_updated !== lastSyncStatus.last_updated) {
+        lastSyncStatus = status;
+        await reload();
+      }
+    } catch (e) {
+      // Ignore errors for silent background sync
+    }
+  }, intervalMs);
+}
+
+export function stopAutoSync() {
+  if (syncInterval) {
+    clearInterval(syncInterval);
+    syncInterval = null;
+  }
+}

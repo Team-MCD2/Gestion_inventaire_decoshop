@@ -249,3 +249,15 @@ export async function clearAllArticles() {
   if (error) rethrow('Vidage de la table articles', error);
   return Number(count || 0);
 }
+
+export async function getSyncStatus() {
+  const db = getDb();
+  const { data, error, count } = await db
+    .from(TABLE)
+    .select('updated_at', { count: 'exact', head: false })
+    .order('updated_at', { ascending: false })
+    .limit(1);
+  if (error) return { last_updated: 0, count: 0 };
+  const lastUpdated = data && data.length > 0 ? data[0].updated_at : 0;
+  return { last_updated: lastUpdated, count: count || 0 };
+}
