@@ -22,16 +22,21 @@ export async function GET({ url }) {
   try {
     const articles = await listArticles();
     const norm = q.toLowerCase();
+    // Normalized version with no spaces/dashes (for barcode matching)
+    const normStripped = norm.replace(/[\s\-]/g, '');
     // Exact match priority, then prefix on numero_article
     const exact = articles.find(
-      (a) => a.numero_article === q || a.code_barres === q
+      (a) => a.numero_article === q ||
+             a.code_barres === q ||
+             (a.code_barres && a.code_barres.replace(/[\s\-]/g, '') === normStripped)
     );
     if (exact) return json({ found: true, article: exact, match: 'exact' });
 
     const partial = articles.find(
       (a) =>
         (a.numero_article || '').toLowerCase().includes(norm) ||
-        (a.code_barres   || '').toLowerCase() === norm
+        (a.code_barres   || '').toLowerCase() === norm ||
+        (a.code_barres   || '').replace(/[\s\-]/g, '').toLowerCase() === normStripped
     );
     if (partial) return json({ found: true, article: partial, match: 'partial' });
 

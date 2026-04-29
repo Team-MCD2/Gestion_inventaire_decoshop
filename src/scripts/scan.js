@@ -21,7 +21,7 @@ function showState(state) {
 
 // EAN/UPC : 8 à 14 chiffres uniquement. Pas de DECO-..., pas de lettres.
 function looksLikeBarcode(s) {
-  return /^\d{8,14}$/.test(String(s || '').trim());
+  return /^\d{8,14}$/.test(String(s || '').trim().replace(/[\s\-]/g, ''));
 }
 
 function renderNotFound(query) {
@@ -163,7 +163,8 @@ function renderArticle(article) {
 }
 
 async function searchAndShow(query) {
-  const q = String(query || '').trim();
+  // Strip spaces/dashes so users can type barcodes with natural spacing
+  const q = String(query || '').trim().replace(/[\s\-]/g, '');
   if (!q) { showState('empty'); return; }
   if (q === lastQuery) return; // avoid duplicate searches on Enter spam
   lastQuery = q;
