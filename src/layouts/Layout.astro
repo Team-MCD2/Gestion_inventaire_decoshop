@@ -13,6 +13,11 @@ const {
   description = "Inventaire intelligent avec caméra, analyse IA et scan code-barres.",
   showNav = true,
 } = Astro.props;
+
+// Expiration de la session courante (cf. src/middleware.js). Présent uniquement
+// quand l'utilisateur est authentifié — on l'utilise pour planifier une
+// auto-déconnexion côté client pile à l'expiration.
+const authExpiresAt = Astro.locals.authExpiresAt;
 ---
 <!DOCTYPE html>
 <html lang="fr">
@@ -21,6 +26,7 @@ const {
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1e3a8a" />
+    {authExpiresAt && <meta name="dsh-session-expires-at" content={String(authExpiresAt)} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -33,5 +39,22 @@ const {
     <slot />
     <!-- Toast host (shared by every page) -->
     <div id="toast-host" class="fixed top-4 right-4 z-[60] space-y-2 pointer-events-none"></div>
+
+    {authExpiresAt && (
+      <script is:inline define:vars={{ expiresAt: authExpiresAt }}>
+        // Auto-déconnexion côté client : on planifie un redirect vers /code
+        // pile au moment où le cookie de session expire (30 min après le
+        // login). Utile si l'utilisateur reste sur la même page sans
+        // déclencher de requête au serveur.
+        (function () {
+          const remaining = expiresAt - Date.now();
+          const back = encodeURIComponent(location.pathname + location.search);
+          const target = '/code?next=' + back;
+          if (remaining <= 0) { location.replace(target); return; }
+          // setTimeout est plafonné à ~24,8 jours (int32) — sans risque ici (30 min).
+          setTimeout(() => location.replace(target), remaining + 500);
+        })();
+      </script>
+    )}
   </body>
 </html>
