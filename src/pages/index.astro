@@ -180,13 +180,11 @@ import Layout from '../layouts/Layout.astro';
       };
 
       try {
-        const res = await fetch('/api/articles');
+        // /api/stats : agrégats serveur (sans photos), payload ~1 KB.
+        // top=0 car l'accueil n'a pas besoin du top-10.
+        const res = await fetch('/api/stats?top=0');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { articles = [] } = await res.json();
-        const total = articles.length;
-        const value = articles.reduce((s, a) => s + (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0), 0);
-        const low   = articles.filter((a) => a.statut === 'stock_faible').length;
-        const out   = articles.filter((a) => a.statut === 'rupture').length;
+        const { total = 0, value = 0, low = 0, out = 0 } = await res.json();
         document.getElementById('qs-total').textContent = total;
         document.getElementById('qs-value').textContent = fmtPrice(value);
         document.getElementById('qs-low').textContent   = low;

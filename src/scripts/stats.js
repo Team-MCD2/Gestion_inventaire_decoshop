@@ -12,21 +12,13 @@ function fmtInt(n) {
   return Number(n).toLocaleString('fr-FR');
 }
 
-async function fetchArticles() {
-  const res = await fetch('/api/articles');
+// /api/stats : payload pré-agrégé (KPIs + by_category + top10). On ne
+// récupère JAMAIS toutes les photos depuis le client, ce qui rendait la
+// page très lente quand le catalogue contenait des photos en base64.
+async function fetchStats() {
+  const res = await fetch('/api/stats?top=10');
   if (!res.ok) throw new Error(`Erreur ${res.status}`);
-  // L'API renvoie { articles: [...] }
-  const { articles = [] } = await res.json();
-  return articles;
-}
-
-function computeKpi(articles) {
-  const total = articles.length;
-  const units = articles.reduce((s, a) => s + (Number(a.quantite) || 0), 0);
-  const value = articles.reduce((s, a) => s + (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0), 0);
-  const low   = articles.filter((a) => a.statut === 'stock_faible').length;
-  const out   = articles.filter((a) => a.statut === 'rupture').length;
-  return { total, units, value, low, out };
+  return await res.json();
 }
 
 function fillKpis(k) {
@@ -106,25 +98,10 @@ function showError(msg) {
   if (msg) toast(msg, 'error');
 }
 
-function groupByCategory(articles) {
-  const map = new Map();
-  for (const a of articles) {
-    const cat = (a.categorie || 'Sans catégorie').trim();
-    if (!map.has(cat)) map.set(cat, { count: 0, qty: 0, value: 0 });
-    const e = map.get(cat);
-    e.count += 1;
-    e.qty   += Number(a.quantite) || 0;
-    e.value += (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0);
-  }
-  return [...map.entries()]
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.value - a.value);
-}
-
-function renderCategoryDonut(articles) {
+function renderCategoryDonut(byCategory) {
   const ctx = $('#chart-categories');
   if (!ctx) return;
-  const data = groupByCategory(articles);
+  const data = byCategory || [];
   new Chart(ctx, {
     type: 'doughnut',
     data: {
@@ -151,10 +128,10 @@ function renderCategoryDonut(articles) {
   });
 }
 
-function renderValueByCategoryBar(articles) {
+function renderValueByCategoryBar(byCategory) {
   const ctx = $('#chart-value-by-cat');
   if (!ctx) return;
-  const data = groupByCategory(articles).slice(0, 8);
+  const data = (byCategory || []).slice(0, 8);
   new Chart(ctx, {
     type: 'bar',
     data: {
@@ -188,13 +165,13 @@ function renderValueByCategoryBar(articles) {
   });
 }
 
-function renderStatusPie(articles) {
+function renderStatusPie(statusCounts) {
   const ctx = $('#chart-status');
   if (!ctx) return;
   const counts = {
-    en_stock: articles.filter((a) => a.statut === 'en_stock').length,
-    stock_faible: articles.filter((a) => a.statut === 'stock_faible').length,
-    rupture: articles.filter((a) => a.statut === 'rupture').length,
+    en_stock:     Number(statusCounts?.en_stock     || 0),
+    stock_faible: Number(statusCounts?.stock_faible || 0),
+    rupture:      Number(statusCounts?.rupture      || 0),
   };
   new Chart(ctx, {
     type: 'doughnut',
@@ -217,18 +194,15 @@ function renderStatusPie(articles) {
   });
 }
 
-function renderTopList(articles) {
+function renderTopList(topServer) {
   const list = $('#top-list');
   const empty = $('#top-empty');
   if (!list || !empty) return;
-  const top = [...articles]
-    .map((a) => ({
-      ...a,
-      _value: (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0),
-    }))
-    .filter((a) => a._value > 0)
-    .sort((a, b) => b._value - a._value)
-    .slice(0, 10);
+  // Le serveur renvoie déjà la liste triée et limitée à 10, avec _value calculé.
+  const top = (topServer || []).map((a) => ({
+    ...a,
+    _value: Number(a._value ?? (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0)),
+  }));
 
   if (!top.length) {
     list.innerHTML = '';
@@ -263,18 +237,17 @@ function renderTopList(articles) {
 
 async function boot() {
   try {
-    const articles = await fetchArticles();
-    const k = computeKpi(articles);
+    const stats = await fetchStats();
 
     // Fill values then reveal (skeletons → real values with fade-in)
-    fillKpis(k);
+    fillKpis(stats);
     revealKpis();
 
     // Render charts (canvas was already in DOM, just hidden behind overlays)
-    renderCategoryDonut(articles);
-    renderValueByCategoryBar(articles);
-    renderStatusPie(articles);
-    renderTopList(articles);
+    renderCategoryDonut(stats.by_category);
+    renderValueByCategoryBar(stats.by_category);
+    renderStatusPie(stats.status_counts);
+    renderTopList(stats.top);
     revealCharts();
     hidePageLoader();
   } catch (e) {

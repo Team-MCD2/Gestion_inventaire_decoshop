@@ -250,6 +250,160 @@ export async function clearAllArticles() {
   return Number(count || 0);
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Statistiques agrégées — version optimisée pour /api/stats.
+//
+// L'app stockait jusque-là les photos en data URL base64 dans `photo_url`,
+// ce qui rend `select *` très lourd (plusieurs MB par article). Ici on fait
+// un seul scan de la table avec UNIQUEMENT les colonnes utiles aux agrégats
+// (pas de photo) puis, pour le top-N, une seconde requête limitée aux IDs
+// concernés pour rapatrier juste leurs photos.
+//
+// Retour :
+//   {
+//     total, units, value,                     // KPIs principaux
+//     low, out, in_stock,                      // par statut
+//     status_counts: { en_stock, stock_faible, rupture },
+//     by_category: [{ name, count, qty, value }, ...],   // trié par valeur ↓
+//     top:         [{ ...row, photo_url, _value }, ...]  // top N par valeur ↓
+//   }
+export async function getStatsBundle({ topLimit = 10 } = {}) {
+  const db = getDb();
+
+  // 1) Scan léger — sans photo_url
+  const { data, error } = await db
+    .from(TABLE)
+    .select('id,numero_article,marque,couleur,categorie,prix_vente,quantite,seuil_stock_faible');
+  if (error) rethrow('Statistiques', error);
+  const rows = data || [];
+
+  let total = 0;
+  let units = 0;
+  let value = 0;
+  let low = 0;
+  let out = 0;
+  const byCat = new Map();
+  const topCandidates = [];
+
+  for (const r of rows) {
+    const q = Number(r.quantite || 0);
+    const p = Number(r.prix_vente || 0);
+    const seuil = Number(r.seuil_stock_faible || DEFAULT_SEUIL);
+    const v = p * q;
+
+    total += 1;
+    units += q;
+    value += v;
+    if (q <= 0) out += 1;
+    else if (q <= seuil) low += 1;
+
+    const catKey = (r.categorie || '').trim() || 'Sans catégorie';
+    const e = byCat.get(catKey) || { count: 0, qty: 0, value: 0 };
+    e.count += 1;
+    e.qty   += q;
+    e.value += v;
+    byCat.set(catKey, e);
+
+    if (v > 0) {
+      topCandidates.push({
+        id: r.id,
+        numero_article: r.numero_article,
+        marque: r.marque,
+        couleur: r.couleur,
+        categorie: r.categorie,
+        prix_vente: p,
+        quantite: q,
+        _value: v,
+      });
+    }
+  }
+
+  const in_stock = total - low - out;
+  const by_category = [...byCat.entries()]
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.value - a.value);
+
+  // 2) Top N par valeur de stock — depuis les données déjà scannées
+  const topLight = topCandidates
+    .sort((a, b) => b._value - a._value)
+    .slice(0, Math.max(0, topLimit));
+
+  // 3) Récupère uniquement les photos des top N (1 requête, payload minime)
+  let top = topLight;
+  if (topLight.length) {
+    const ids = topLight.map((a) => a.id);
+    const { data: photos, error: e2 } = await db
+      .from(TABLE)
+      .select('id,photo_url')
+      .in('id', ids);
+    if (!e2 && photos) {
+      const m = new Map(photos.map((p) => [p.id, p.photo_url]));
+      top = topLight.map((a) => ({ ...a, photo_url: m.get(a.id) || '' }));
+    } else {
+      // En cas d'échec, on renvoie le top sans photos plutôt que d'échouer.
+      top = topLight.map((a) => ({ ...a, photo_url: '' }));
+    }
+  }
+
+  return {
+    total,
+    units,
+    value,
+    low,
+    out,
+    in_stock,
+    status_counts: { en_stock: in_stock, stock_faible: low, rupture: out },
+    by_category,
+    top,
+  };
+}
+
+// Recherche d'un article par numéro ou code-barres.
+// Optimisée : tente d'abord une égalité stricte côté Postgres (2 requêtes
+// .eq() en parallèle, ne renvoient que la ligne trouvée). En cas d'échec,
+// fallback sur un scan léger SANS photo_url, puis un seul getArticle(id)
+// pour rapatrier la photo de la ligne matchée.
+export async function findArticleByCode(q) {
+  const query = String(q || '').trim();
+  if (!query) return { found: false, article: null };
+
+  const db = getDb();
+
+  // 1) Match exact côté DB (deux requêtes en parallèle, payload minime)
+  const [byNum, byBar] = await Promise.all([
+    db.from(TABLE).select('*').eq('numero_article', query).limit(1),
+    db.from(TABLE).select('*').eq('code_barres',    query).limit(1),
+  ]);
+  const exactRow = byNum.data?.[0] || byBar.data?.[0];
+  if (exactRow) return { found: true, match: 'exact', article: decorate(exactRow) };
+
+  // 2) Match approximatif (substring sur numero_article, normalisation des
+  //    espaces/tirets sur code_barres). On lit uniquement les colonnes
+  //    nécessaires (pas de photo_url) pour rester rapide.
+  const { data: lite, error } = await db
+    .from(TABLE)
+    .select('id,numero_article,code_barres');
+  if (error) rethrow('Recherche d\'article', error);
+
+  const norm = query.toLowerCase();
+  const stripped = norm.replace(/[\s\-]/g, '');
+  const matched = (lite || []).find((a) => {
+    const n = (a.numero_article || '').toLowerCase();
+    const cb = (a.code_barres   || '').toLowerCase();
+    if (n.includes(norm)) return true;
+    if (cb === norm) return true;
+    if (cb.replace(/[\s\-]/g, '') === stripped) return true;
+    return false;
+  });
+  if (!matched) return { found: false, article: null };
+
+  // 3) Une dernière requête pour ramener la ligne complète (avec photo) du match
+  const article = await getArticle(matched.id);
+  return article
+    ? { found: true, match: 'partial', article }
+    : { found: false, article: null };
+}
+
 export async function getSyncStatus() {
   const db = getDb();
   const { data, error, count } = await db
