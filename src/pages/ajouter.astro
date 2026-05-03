@@ -95,6 +95,11 @@ import ScannerModal from '../components/ScannerModal.astro';
                 placeholder="DECO-YYMMDD-XXXXXX"
                 class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
             </div>
+            <div class="col-span-2 md:col-span-2">
+              <label for="nom_produit" class="block text-xs font-semibold text-slate-600 mb-1">Nom du produit</label>
+              <input id="nom_produit" name="nom_produit" type="text" autocomplete="off" placeholder="ex: Chaise scandinave, Vase en céramique…"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none" />
+            </div>
             <div>
               <label for="categorie" class="block text-xs font-semibold text-slate-600 mb-1">Catégorie</label>
               <input id="categorie" name="categorie" type="text" list="list-categories" autocomplete="off"

@@ -1,13 +1,13 @@
 // Petite couche d'authentification "code d'accès" pour DECO SHOP.
 //
 // - Code à 6 chiffres (par défaut 110706, surchargeable via APP_ACCESS_CODE).
-// - Session de 30 minutes matérialisée par un cookie HttpOnly signé HMAC-SHA256.
+// - Session de 24 heures matérialisée par un cookie HttpOnly signé HMAC-SHA256.
 // - Vérification timing-safe à chaque requête (cf. src/middleware.js).
 
 import crypto from 'node:crypto';
 
 export const ACCESS_CODE = String(process.env.APP_ACCESS_CODE || '110706').trim();
-export const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+export const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 heures
 export const COOKIE_NAME = 'dsh_auth';
 
 // Secret de signature : on prend en priorité APP_AUTH_SECRET, sinon on retombe

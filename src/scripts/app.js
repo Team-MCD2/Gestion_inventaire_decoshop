@@ -24,7 +24,7 @@ unlockAudioOnce();
 // Field config (MCD schema, cf. mcd_mld.md §2)
 // ─────────────────────────────────────────────────────────────────────────────
 const TEXT_FIELDS = [
-  'numero_article', 'categorie', 'marque', 'couleur', 'description',
+  'numero_article', 'nom_produit', 'categorie', 'marque', 'couleur', 'description',
   'code_barres', 'taille',
 ];
 const NUMBER_FIELDS = ['prix_vente', 'quantite_initiale', 'quantite'];
@@ -437,7 +437,7 @@ function filteredArticles() {
   if (search) {
     const q = search.toLowerCase();
     list = list.filter((a) =>
-      [a.numero_article, a.code_barres, a.marque, a.couleur, a.description, a.categorie, a.taille]
+      [a.numero_article, a.nom_produit, a.code_barres, a.marque, a.couleur, a.description, a.categorie, a.taille]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q))
     );
@@ -453,15 +453,19 @@ function renderTable() {
   const empty = $('#inventory-empty');
   const loadingEl = $('#inventory-loading');
   const count = $('#inventory-count');
-  if (count) count.textContent = list.length;
 
-  if (loading && !getState().articles.length) {
+  // Pendant le chargement, toujours afficher le spinner (pas "inventaire vide")
+  if (loading) {
     tbody.innerHTML = '';
     empty?.classList.add('hidden');
     loadingEl?.classList.remove('hidden');
+    if (count) count.textContent = '…';
     return;
   }
   loadingEl?.classList.add('hidden');
+  if (count) count.textContent = list.length;
+
+
 
   if (!list.length) {
     tbody.innerHTML = '';
@@ -476,6 +480,7 @@ function renderTable() {
       <td class="px-3 py-2">${a.photo_url
         ? `<img src="${a.photo_url}" class="h-12 w-12 object-cover rounded-md ring-1 ring-slate-200" alt="" />`
         : '<span class="inline-flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-slate-300 text-xs">—</span>'}</td>
+      <td class="px-3 py-2 max-w-[140px]"><div class="font-medium text-slate-800 text-xs truncate">${escapeHtml(a.nom_produit || '—')}</div></td>
       <td class="px-3 py-2"><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(a.categorie || '—')}</span></td>
       <td class="px-3 py-2">${escapeHtml(a.marque || '')}</td>
       <td class="px-3 py-2">${escapeHtml(a.couleur || '')}</td>
@@ -818,6 +823,64 @@ function wireGlobalKeyboard() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Inventory recap — computed from already-loaded state (no extra API call)
+// ─────────────────────────────────────────────────────────────────────────────
+function fmtDateFr(ts) {
+  if (!ts) return '—';
+  try {
+    const d = new Date(typeof ts === 'number' ? ts : Number(ts));
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  } catch { return '—'; }
+}
+
+function fmtCurrency(v) {
+  return Number(v).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+}
+
+function renderInventoryRecap() {
+  const { articles, loading } = getState();
+  if (loading || !articles.length) return; // sera appelé à nouveau après reload
+
+  let totalValue = 0;
+  let totalUnits = 0;
+  let low = 0;
+  let out = 0;
+  let minCreated = Infinity;
+  let maxCreated = -Infinity;
+  let maxUpdated = -Infinity;
+
+  for (const a of articles) {
+    const q = Number(a.quantite || 0);
+    const p = Number(a.prix_vente || 0);
+    const seuil = Number(a.seuil_stock_faible || 5);
+    totalValue += p * q;
+    totalUnits += q;
+    if (q <= 0) out++;
+    else if (q <= seuil) low++;
+
+    const cr = Number(a.created_at || 0);
+    const up = Number(a.updated_at || 0);
+    if (cr && cr < minCreated) minCreated = cr;
+    if (cr && cr > maxCreated) maxCreated = cr;
+    if (up && up > maxUpdated) maxUpdated = up;
+  }
+
+  const setEl = (id, val) => { const el = $(`#${id}`); if (el) el.textContent = val; };
+  setEl('recap-value', fmtCurrency(totalValue));
+  setEl('recap-units', String(totalUnits));
+  setEl('recap-low',   String(low));
+  setEl('recap-out',   String(out));
+  setEl('recap-date-start',   minCreated === Infinity ? '—' : fmtDateFr(minCreated));
+  setEl('recap-date-last',    maxCreated === -Infinity ? '—' : fmtDateFr(maxCreated));
+  setEl('recap-date-updated', maxUpdated === -Infinity ? '—' : fmtDateFr(maxUpdated));
+}
+
+function wirePrintButton() {
+  $('#btn-print-inventory')?.addEventListener('click', () => window.print());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Boot
 // ─────────────────────────────────────────────────────────────────────────────
 async function boot() {
@@ -826,11 +889,13 @@ async function boot() {
   wireInventoryTable();
   wireEditModal();
   wireGlobalKeyboard();
+  wirePrintButton();
 
-  // Only fetch the inventory list when the page actually needs it.
-  // /ajouter doesn't render the table but uses createArticle / nextNumArticle,
-  // so we still subscribe — it's cheap (one fetch) and helps prefill the next num.
-  subscribe(renderTable);
+  // Subscribe to state changes for both table AND recap
+  subscribe((s) => {
+    renderTable();
+    renderInventoryRecap();
+  });
   await reload();
 }
 

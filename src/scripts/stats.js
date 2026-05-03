@@ -194,15 +194,107 @@ function renderStatusPie(statusCounts) {
   });
 }
 
+// Store des articles top pour la modale détail
+let _topArticles = [];
+
+function openStatArticleModal(article) {
+  const modal = document.getElementById('stat-article-modal');
+  const body  = document.getElementById('stat-modal-body');
+  if (!modal || !body) return;
+
+  function fmtTs(ts) {
+    if (!ts) return '—';
+    try {
+      const d = new Date(typeof ts === 'number' ? ts : Number(ts));
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+    } catch { return '—'; }
+  }
+
+  const STATUS = { en_stock: 'En stock', stock_faible: 'Stock faible', rupture: 'Rupture' };
+  const STATUS_COLORS = {
+    en_stock:     'bg-emerald-100 text-emerald-700',
+    stock_faible: 'bg-amber-100 text-amber-700',
+    rupture:      'bg-red-100 text-red-700',
+  };
+  const statut = article.statut || (Number(article.quantite) <= 0 ? 'rupture' : 'en_stock');
+  const statutCls = STATUS_COLORS[statut] || 'bg-slate-100 text-slate-700';
+
+  body.innerHTML = `
+    <div class="flex items-start gap-4 mb-5">
+      ${article.photo_url
+        ? `<img src="${escapeHtml(article.photo_url)}" alt="" class="h-20 w-20 rounded-xl object-cover ring-1 ring-slate-200 shrink-0" />`
+        : `<div class="h-20 w-20 shrink-0 rounded-xl bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-slate-300"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>`}
+      <div class="min-w-0 flex-1">
+        ${article.nom_produit ? `<div class="text-xs text-indigo-600 font-semibold mb-0.5">${escapeHtml(article.nom_produit)}</div>` : ''}
+        <div class="text-lg font-bold text-slate-900 truncate">
+          ${escapeHtml(article.marque || article.numero_article || '—')}
+          ${article.couleur ? `<span class="text-slate-400 font-normal text-base"> · ${escapeHtml(article.couleur)}</span>` : ''}
+        </div>
+        <div class="flex flex-wrap gap-1.5 mt-1.5">
+          <span class="font-mono text-xs text-slate-500">${escapeHtml(article.numero_article || '')}</span>
+          ${article.categorie ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(article.categorie)}</span>` : ''}
+          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statutCls}">${STATUS[statut] || statut}</span>
+        </div>
+      </div>
+    </div>
+    <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+      <div>
+        <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Prix vente</dt>
+        <dd class="mt-0.5 font-bold text-slate-900">${fmtPrice(article.prix_vente) || '—'}</dd>
+      </div>
+      <div>
+        <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Valeur stock</dt>
+        <dd class="mt-0.5 font-bold text-indigo-600">${fmtPrice(article._value) || '—'}</dd>
+      </div>
+      <div>
+        <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Quantité actuelle</dt>
+        <dd class="mt-0.5 font-bold text-slate-900">${article.quantite ?? '—'}</dd>
+      </div>
+      <div>
+        <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Date d'ajout</dt>
+        <dd class="mt-0.5 text-slate-700">${fmtTs(article.created_at)}</dd>
+      </div>
+      <div>
+        <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Dernière mise à jour</dt>
+        <dd class="mt-0.5 text-slate-700">${fmtTs(article.updated_at)}</dd>
+      </div>
+    </dl>
+    <div class="mt-5 flex justify-end">
+      <a href="/inventaire" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+        Voir dans l'inventaire
+      </a>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeStatArticleModal() {
+  const modal = document.getElementById('stat-article-modal');
+  modal?.classList.add('hidden');
+  modal?.classList.remove('flex');
+}
+
+function wireStatModal() {
+  document.getElementById('stat-modal-close')?.addEventListener('click', closeStatArticleModal);
+  document.getElementById('stat-article-backdrop')?.addEventListener('click', closeStatArticleModal);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeStatArticleModal();
+  });
+}
+
 function renderTopList(topServer) {
   const list = $('#top-list');
   const empty = $('#top-empty');
   if (!list || !empty) return;
-  // Le serveur renvoie déjà la liste triée et limitée à 10, avec _value calculé.
+
   const top = (topServer || []).map((a) => ({
     ...a,
     _value: Number(a._value ?? (Number(a.prix_vente) || 0) * (Number(a.quantite) || 0)),
   }));
+  _topArticles = top;
 
   if (!top.length) {
     list.innerHTML = '';
@@ -213,14 +305,14 @@ function renderTopList(topServer) {
 
   const maxValue = top[0]._value || 1;
   list.innerHTML = top.map((a, i) => `
-    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition">
-      <div class="h-7 w-7 shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">${i + 1}</div>
+    <div class="top-row flex items-center gap-3 p-2 rounded-lg hover:bg-indigo-50 cursor-pointer transition group" data-idx="${i}" title="Cliquer pour voir le détail">
+      <div class="h-7 w-7 shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-700 transition">${i + 1}</div>
       ${a.photo_url
         ? `<img src="${a.photo_url}" alt="" class="h-10 w-10 shrink-0 object-cover rounded-md ring-1 ring-slate-200" />`
         : '<div class="h-10 w-10 shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-slate-300"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>'}
       <div class="min-w-0 flex-1">
-        <div class="text-sm font-semibold text-slate-900 truncate">
-          ${escapeHtml(a.marque || a.numero_article || '—')}
+        <div class="text-sm font-semibold text-slate-900 truncate group-hover:text-indigo-700 transition">
+          ${escapeHtml(a.nom_produit || a.marque || a.numero_article || '—')}
           ${a.couleur ? `<span class="text-slate-400 font-normal"> · ${escapeHtml(a.couleur)}</span>` : ''}
         </div>
         <div class="mt-1 relative h-1.5 rounded-full bg-slate-100 overflow-hidden">
@@ -233,9 +325,19 @@ function renderTopList(topServer) {
       </div>
     </div>
   `).join('');
+
+  // Wire click events
+  list.querySelectorAll('.top-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      const idx = Number(row.dataset.idx);
+      const article = _topArticles[idx];
+      if (article) openStatArticleModal(article);
+    });
+  });
 }
 
 async function boot() {
+  wireStatModal();
   try {
     const stats = await fetchStats();
 

@@ -36,8 +36,17 @@ export async function reload() {
   state.error = null;
   emit();
   try {
-    const { articles } = await api('/api/articles');
-    state.articles = articles;
+    // cache: 'no-store' force le navigateur à toujours interroger le serveur.
+    // Cela évite le problème où la liste d'articles semble vide juste après
+    // un ajout parce que le navigateur renvoie une réponse cachée périmée.
+    const res = await fetch('/api/articles', {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      cache: 'no-store',
+    });
+    const ct = res.headers.get('content-type') || '';
+    const body = ct.includes('application/json') ? await res.json() : { error: await res.text() };
+    if (!res.ok) throw new Error(body.error || `Erreur API (${res.status})`);
+    state.articles = body.articles || [];
   } catch (e) {
     state.error = e.message;
     console.error('Reload failed:', e);

@@ -70,6 +70,7 @@ function normalize(data, existing = null) {
     ? Number(data.quantite)
     : (existing?.quantite ?? qInit);
   return {
+    nom_produit:  String(data.nom_produit  ?? existing?.nom_produit  ?? '').trim(),
     description: String(data.description ?? existing?.description ?? '').trim(),
     marque:      String(data.marque      ?? existing?.marque      ?? '').trim(),
     couleur:     String(data.couleur     ?? existing?.couleur     ?? '').trim(),
@@ -273,7 +274,7 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
   // 1) Scan léger — sans photo_url
   const { data, error } = await db
     .from(TABLE)
-    .select('id,numero_article,marque,couleur,categorie,prix_vente,quantite,seuil_stock_faible');
+    .select('id,numero_article,nom_produit,marque,couleur,categorie,prix_vente,quantite,seuil_stock_faible,created_at,updated_at');
   if (error) rethrow('Statistiques', error);
   const rows = data || [];
 
@@ -308,11 +309,14 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
       topCandidates.push({
         id: r.id,
         numero_article: r.numero_article,
+        nom_produit: r.nom_produit,
         marque: r.marque,
         couleur: r.couleur,
         categorie: r.categorie,
         prix_vente: p,
         quantite: q,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
         _value: v,
       });
     }
@@ -359,25 +363,38 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
 }
 
 // Recherche d'un article par numéro ou code-barres.
-// Optimisée : tente d'abord une égalité stricte côté Postgres (2 requêtes
-// .eq() en parallèle, ne renvoient que la ligne trouvée). En cas d'échec,
-// fallback sur un scan léger SANS photo_url, puis un seul getArticle(id)
-// pour rapatrier la photo de la ligne matchée.
+//
+// Retourne :
+//   { found: true,  match: 'exact'|'partial', article, articles }
+//   { found: false, article: null, articles: [] }
+//
+// Quand la recherche est par code-barres et plusieurs articles partagent
+// le même code, `articles` contiendra TOUS ces articles. `article` sera le
+// premier (pour la compatibilité ascendante). Si la recherche est par
+// numero_article (unique), `articles` aura un seul élément.
 export async function findArticleByCode(q) {
   const query = String(q || '').trim();
-  if (!query) return { found: false, article: null };
+  if (!query) return { found: false, article: null, articles: [] };
 
   const db = getDb();
 
-  // 1) Match exact côté DB (deux requêtes en parallèle, payload minime)
-  const [byNum, byBar] = await Promise.all([
-    db.from(TABLE).select('*').eq('numero_article', query).limit(1),
-    db.from(TABLE).select('*').eq('code_barres',    query).limit(1),
-  ]);
-  const exactRow = byNum.data?.[0] || byBar.data?.[0];
-  if (exactRow) return { found: true, match: 'exact', article: decorate(exactRow) };
+  // 1) Match par numero_article (unique) — priorité absolue
+  const { data: byNumData } = await db
+    .from(TABLE).select('*').eq('numero_article', query).limit(1);
+  if (byNumData?.[0]) {
+    const article = decorate(byNumData[0]);
+    return { found: true, match: 'exact', article, articles: [article] };
+  }
 
-  // 2) Match approximatif (substring sur numero_article, normalisation des
+  // 2) Match par code_barres — peut retourner plusieurs articles
+  const { data: byBarData } = await db
+    .from(TABLE).select('*').eq('code_barres', query);
+  if (byBarData && byBarData.length > 0) {
+    const articles = byBarData.map(decorate);
+    return { found: true, match: 'exact', article: articles[0], articles };
+  }
+
+  // 3) Match approximatif (substring sur numero_article, normalisation des
   //    espaces/tirets sur code_barres). On lit uniquement les colonnes
   //    nécessaires (pas de photo_url) pour rester rapide.
   const { data: lite, error } = await db
@@ -387,21 +404,36 @@ export async function findArticleByCode(q) {
 
   const norm = query.toLowerCase();
   const stripped = norm.replace(/[\s\-]/g, '');
-  const matched = (lite || []).find((a) => {
-    const n = (a.numero_article || '').toLowerCase();
-    const cb = (a.code_barres   || '').toLowerCase();
-    if (n.includes(norm)) return true;
-    if (cb === norm) return true;
-    if (cb.replace(/[\s\-]/g, '') === stripped) return true;
-    return false;
-  });
-  if (!matched) return { found: false, article: null };
 
-  // 3) Une dernière requête pour ramener la ligne complète (avec photo) du match
-  const article = await getArticle(matched.id);
-  return article
-    ? { found: true, match: 'partial', article }
-    : { found: false, article: null };
+  // Collecter TOUS les matches approximatifs sur code_barres
+  const matchedByBar = (lite || []).filter((a) => {
+    const cb = (a.code_barres || '').toLowerCase();
+    return cb === norm || cb.replace(/[\s\-]/g, '') === stripped;
+  });
+
+  if (matchedByBar.length > 0) {
+    // Ramener les lignes complètes (avec photo)
+    const ids = matchedByBar.map((a) => a.id);
+    const { data: full } = await db.from(TABLE).select('*').in('id', ids);
+    if (full && full.length > 0) {
+      const articles = full.map(decorate);
+      return { found: true, match: 'partial', article: articles[0], articles };
+    }
+  }
+
+  // Match sur numero_article (substring)
+  const matchedByNum = (lite || []).find((a) => {
+    const n = (a.numero_article || '').toLowerCase();
+    return n.includes(norm);
+  });
+  if (matchedByNum) {
+    const article = await getArticle(matchedByNum.id);
+    return article
+      ? { found: true, match: 'partial', article, articles: [article] }
+      : { found: false, article: null, articles: [] };
+  }
+
+  return { found: false, article: null, articles: [] };
 }
 
 export async function getSyncStatus() {

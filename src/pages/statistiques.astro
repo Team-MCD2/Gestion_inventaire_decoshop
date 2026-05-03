@@ -8,7 +8,7 @@ import Layout from '../layouts/Layout.astro';
       <div>
         <div class="text-xs font-semibold text-violet-600 uppercase tracking-wider">Tableau de bord</div>
         <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Statistiques</h1>
-        <p class="text-sm text-slate-600 mt-1">Vue d'ensemble de votre stock. Les ventes Shopify s'afficheront automatiquement dès la connexion à la base.</p>
+        <p class="text-sm text-slate-600 mt-1">Vue d'ensemble de votre stock en temps réel.</p>
       </div>
       <!-- Pill loader visible only while fetching -->
       <div id="stats-loader" class="inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 ring-1 ring-violet-200">
@@ -103,9 +103,10 @@ import Layout from '../layouts/Layout.astro';
     <!-- Top 10 + status pie -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
 
-      <!-- Top 10 par valeur -->
+      <!-- Top 10 par valeur — cliquable -->
       <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 md:p-5">
-        <h2 class="text-sm font-semibold text-slate-900 mb-3">Top 10 articles par valeur de stock</h2>
+        <h2 class="text-sm font-semibold text-slate-900 mb-1">Top 10 articles par valeur de stock</h2>
+        <p class="text-xs text-slate-400 mb-3">Cliquez sur un article pour voir sa fiche détaillée.</p>
         <div id="top-list" class="space-y-2">
           <!-- Skeleton rows shown until data is loaded; replaced by stats.js -->
           <div class="top-skel space-y-2">
@@ -133,18 +134,6 @@ import Layout from '../layouts/Layout.astro';
                 <div class="h-2 w-16 rounded bg-slate-100 animate-pulse ml-auto"></div>
               </div>
             </div>
-            <div class="flex items-center gap-3 p-2">
-              <div class="h-7 w-7 rounded-md bg-slate-200 animate-pulse"></div>
-              <div class="h-10 w-10 rounded-md bg-slate-200 animate-pulse"></div>
-              <div class="flex-1 space-y-2">
-                <div class="h-3 w-1/3 rounded bg-slate-200 animate-pulse"></div>
-                <div class="h-1.5 w-3/5 rounded-full bg-slate-100 animate-pulse"></div>
-              </div>
-              <div class="space-y-2 text-right">
-                <div class="h-3 w-10 rounded bg-slate-200 animate-pulse ml-auto"></div>
-                <div class="h-2 w-14 rounded bg-slate-100 animate-pulse ml-auto"></div>
-              </div>
-            </div>
           </div>
         </div>
         <div id="top-empty" class="hidden py-8 text-center text-sm text-slate-400">Aucun article en stock</div>
@@ -163,40 +152,19 @@ import Layout from '../layouts/Layout.astro';
       </div>
     </section>
 
-    <!-- Shopify placeholders -->
-    <section class="bg-gradient-to-br from-slate-50 to-violet-50 rounded-2xl ring-1 ring-violet-200 p-5 md:p-6">
-      <div class="flex items-start justify-between gap-3 mb-4">
-        <div>
-          <div class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[11px] font-semibold ring-1 ring-violet-200 uppercase tracking-wider">
-            Bientôt — connexion Shopify
-          </div>
-          <h2 class="mt-2 text-base font-bold text-slate-900">Statistiques de ventes</h2>
-          <p class="text-sm text-slate-600 mt-1 max-w-2xl">
-            Top ventes, panier moyen, chiffre d'affaires, articles à booster… s'activeront automatiquement dès que la base Supabase recevra les commandes Shopify.
-          </p>
-        </div>
-      </div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 opacity-60 select-none">
-        <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Top vendu</div>
-          <div class="mt-2 text-xl font-extrabold text-slate-300 tabular-nums">— —</div>
-        </div>
-        <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">CA 30j</div>
-          <div class="mt-2 text-xl font-extrabold text-slate-300 tabular-nums">— —</div>
-        </div>
-        <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Panier moyen</div>
-          <div class="mt-2 text-xl font-extrabold text-slate-300 tabular-nums">— —</div>
-        </div>
-        <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Conversion</div>
-          <div class="mt-2 text-xl font-extrabold text-slate-300 tabular-nums">— —</div>
-        </div>
-      </div>
-    </section>
-
   </main>
+
+  <!-- Modale détail article (statistiques interactives) -->
+  <div id="stat-article-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
+    <div id="stat-article-backdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200 overflow-hidden">
+      <button id="stat-modal-close" type="button"
+        class="absolute top-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+      <div id="stat-modal-body" class="p-6"></div>
+    </div>
+  </div>
 
   <script>
     import '../scripts/stats.js';

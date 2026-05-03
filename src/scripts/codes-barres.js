@@ -361,9 +361,26 @@ async function generateAll() {
 
   toast(`${generated.length} code${generated.length > 1 ? 's' : ''}-barres généré${generated.length > 1 ? 's' : ''} et enregistré${generated.length > 1 ? 's' : ''}`, 'success');
   lastGenerated = generated;
-  renderLabels(generated);
-  // Refresh table to show updated state
-  await fetchArticles();
+
+  // Afficher la modale de choix post-génération
+  openPostGenModal(generated);
+  // Refresh table to show updated state (en arrière-plan)
+  fetchArticles();
+}
+
+// ─── Modale de choix post-génération ───────────────────────────────────────
+function openPostGenModal(items) {
+  const modal = $('#postgen-modal');
+  const countEl = $('#postgen-count');
+  if (!modal) return;
+  if (countEl) countEl.textContent = String(items.length);
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closePostGenModal() {
+  $('#postgen-modal')?.classList.add('hidden');
+  $('#postgen-modal')?.classList.remove('flex');
 }
 
 // ─── Labels rendering (print-friendly) ─────────────────────────────────────
@@ -609,6 +626,23 @@ function wire() {
   });
   $('#modal-download-pdf')?.addEventListener('click', () => {
     if (modalArticle) downloadPdf([{ article: modalArticle, code: modalArticle.code_barres }]);
+  });
+
+  // Post-generation modal events
+  $('#postgen-close')?.addEventListener('click', closePostGenModal);
+  $('#postgen-backdrop')?.addEventListener('click', closePostGenModal);
+  $('#postgen-btn-view')?.addEventListener('click', () => {
+    closePostGenModal();
+    renderLabels(lastGenerated);
+  });
+  $('#postgen-btn-print')?.addEventListener('click', () => {
+    closePostGenModal();
+    renderLabels(lastGenerated);
+    setTimeout(() => window.print(), 300);
+  });
+  $('#postgen-btn-pdf')?.addEventListener('click', () => {
+    closePostGenModal();
+    downloadPdf(lastGenerated);
   });
 
   $('#check-all')?.addEventListener('change', (e) => {

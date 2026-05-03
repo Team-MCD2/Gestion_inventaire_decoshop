@@ -35,6 +35,7 @@ create table if not exists public.articles (
   -- Identifiants
   id                   text           primary key,
   numero_article       text           not null unique,
+  nom_produit          text           not null default '',
 
   -- Champs descriptifs
   description          text           not null default '',
@@ -69,6 +70,7 @@ create table if not exists public.articles (
 
 -- 2.1 Ajouter chaque colonne si elle n'existe pas (résilience aux schémas anciens)
 alter table public.articles add column if not exists numero_article     text           not null default '';
+alter table public.articles add column if not exists nom_produit        text           not null default '';
 alter table public.articles add column if not exists description        text           not null default '';
 alter table public.articles add column if not exists marque             text           not null default '';
 alter table public.articles add column if not exists couleur            text           not null default '';
@@ -147,6 +149,7 @@ create index if not exists idx_articles_marque       on public.articles (marque)
 comment on table  public.articles                    is 'Catalogue des articles du magasin DECO SHOP. Une ligne = un SKU.';
 comment on column public.articles.id                 is 'Identifiant interne (UUID ou DECO-YYMMDD-NNNNNN — généré côté app).';
 comment on column public.articles.numero_article     is 'Numéro d''article public, format DECO-YYMMDD-NNNNNN (NNNNNN aléatoire).';
+comment on column public.articles.nom_produit          is 'Nom du produit / Libellé court (ex: Chaise scandinave).';
 comment on column public.articles.description        is 'Description courte (1 à 2 phrases).';
 comment on column public.articles.marque             is 'Marque du produit (ex: IKEA, Maisons du Monde…).';
 comment on column public.articles.couleur            is 'Couleur principale en français (ex: ''Chêne clair'', ''Bleu marine'').';
