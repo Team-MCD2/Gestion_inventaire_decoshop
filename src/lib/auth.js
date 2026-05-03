@@ -7,7 +7,8 @@
 import crypto from 'node:crypto';
 
 export const ACCESS_CODE = String(process.env.APP_ACCESS_CODE || '110706').trim();
-export const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 heures
+const TTL_HOURS = Number(process.env.APP_SESSION_TTL_HOURS || '24');
+export const SESSION_TTL_MS = TTL_HOURS * 60 * 60 * 1000;
 export const COOKIE_NAME = 'dsh_auth';
 
 // Secret de signature : on prend en priorité APP_AUTH_SECRET, sinon on retombe

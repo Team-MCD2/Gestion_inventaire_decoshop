@@ -475,30 +475,30 @@ function renderTable() {
   empty?.classList.add('hidden');
 
   tbody.innerHTML = list.map((a) => `
-    <tr class="hover:bg-slate-50 transition" data-id="${a.id}">
-      <td class="px-3 py-2 whitespace-nowrap font-mono text-xs font-semibold text-slate-800">${escapeHtml(a.numero_article || '')}</td>
+    <tr class="hover:bg-slate-50 transition cursor-pointer group" data-action="row-edit" data-id="${a.id}">
+      <td class="px-3 py-2 whitespace-nowrap font-mono text-xs font-semibold text-slate-400 group-hover:text-indigo-600 transition">${escapeHtml(a.numero_article || '')}</td>
       <td class="px-3 py-2">${a.photo_url
         ? `<img src="${a.photo_url}" class="h-12 w-12 object-cover rounded-md ring-1 ring-slate-200" alt="" />`
         : '<span class="inline-flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-slate-300 text-xs">—</span>'}</td>
-      <td class="px-3 py-2 max-w-[140px]"><div class="font-medium text-slate-800 text-xs truncate">${escapeHtml(a.nom_produit || '—')}</div></td>
+      <td class="px-3 py-2 max-w-[140px]"><div class="font-bold text-slate-900 text-sm truncate">${escapeHtml(a.nom_produit || '—')}</div></td>
       <td class="px-3 py-2"><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(a.categorie || '—')}</span></td>
-      <td class="px-3 py-2">${escapeHtml(a.marque || '')}</td>
-      <td class="px-3 py-2">${escapeHtml(a.couleur || '')}</td>
-      <td class="px-3 py-2 max-w-xs"><div class="line-clamp-2 text-slate-600">${escapeHtml(a.description || '')}</div></td>
-      <td class="px-3 py-2 text-right tabular-nums">${fmtPrice(a.prix_vente)}</td>
+      <td class="px-3 py-2 font-medium text-slate-700">${escapeHtml(a.marque || '')}</td>
+      <td class="px-3 py-2 text-slate-600">${escapeHtml(a.couleur || '')}</td>
+      <td class="px-3 py-2 max-w-xs"><div class="line-clamp-2 text-xs text-slate-500">${escapeHtml(a.description || '')}</div></td>
+      <td class="px-3 py-2 text-right tabular-nums font-bold text-slate-900">${fmtPrice(a.prix_vente)}</td>
       <td class="px-3 py-2 font-mono text-xs group relative">
         <div class="flex items-center gap-2">
           <span class="inline-barcode-val" data-id="${a.id}">${escapeHtml(a.code_barres || '—')}</span>
-          <button data-action="inline-edit-barcode" data-id="${a.id}" class="hidden md:inline-flex opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600 shrink-0" title="Éditer le code-barres rapidement">
+          <button data-action="inline-edit-barcode" data-id="${a.id}" class="hidden md:inline-flex opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600 shrink-0 print:hidden" title="Éditer le code-barres rapidement">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
         </div>
       </td>
-      <td class="px-3 py-2 whitespace-nowrap text-xs">${escapeHtml(a.taille || '')}</td>
-      <td class="px-3 py-2 text-right tabular-nums">${a.quantite_initiale ?? ''}</td>
-      <td class="px-3 py-2 text-right tabular-nums font-semibold">${a.quantite ?? ''}</td>
+      <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-500">${escapeHtml(a.taille || '')}</td>
+      <td class="px-3 py-2 text-right tabular-nums text-slate-400">${a.quantite_initiale ?? ''}</td>
+      <td class="px-3 py-2 text-right tabular-nums font-bold ${a.quantite <= 0 ? 'text-red-600' : 'text-slate-900'}">${a.quantite ?? ''}</td>
       <td class="px-3 py-2 whitespace-nowrap">${renderStatusBadge(a.statut)}</td>
-      <td class="px-3 py-2 text-right whitespace-nowrap">
+      <td class="px-3 py-2 text-right whitespace-nowrap print:hidden">
         <button data-action="edit" data-id="${a.id}" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold mr-2">Éditer</button>
         <button data-action="delete" data-id="${a.id}" class="text-red-600 hover:text-red-800 text-xs font-semibold">Suppr.</button>
       </td>
@@ -608,33 +608,44 @@ function wireInventoryTable() {
 
   tbody.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-action]');
-    if (!btn) return;
-    const id = btn.dataset.id;
-    const action = btn.dataset.action;
-    if (action === 'edit') {
-      const article = getState().articles.find((a) => a.id === id);
-      if (!article) { toast('Article introuvable', 'error'); return; }
-      openEditModal(article);
-    } else if (action === 'delete') {
-      if (!confirm('Supprimer cet article ?')) return;
-      try {
-        await deleteArticle(id);
-        toast('Article supprimé');
-      } catch (err) {
-        toast(err.message, 'error');
-      }
-    } else if (action === 'inline-edit-barcode') {
+    const row = e.target.closest('tr[data-action="row-edit"]');
+
+    // 1. Si clic sur un bouton d'action
+    if (btn) {
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
       const article = getState().articles.find((a) => a.id === id);
       if (!article) return;
-      const newCode = prompt(`Modifier le code-barres pour l'article ${article.numero_article} :`, article.code_barres || '');
-      if (newCode !== null && newCode.trim() !== (article.code_barres || '')) {
+
+      if (action === 'edit') {
+        openEditModal(article);
+      } else if (action === 'delete') {
+        if (!confirm(`Supprimer définitivement l'article ${article.numero_article} ?`)) return;
         try {
-          await updateArticle(id, { code_barres: newCode.trim() });
-          toast('Code-barres mis à jour', 'success');
+          await deleteArticle(id);
+          toast('Article supprimé', 'success');
         } catch (err) {
-          toast(err.message || 'Erreur lors de la mise à jour', 'error');
+          toast(err.message, 'error');
+        }
+      } else if (action === 'inline-edit-barcode') {
+        const newCode = prompt(`Modifier le code-barres pour l'article ${article.numero_article} :`, article.code_barres || '');
+        if (newCode !== null && newCode.trim() !== (article.code_barres || '')) {
+          try {
+            await updateArticle(id, { code_barres: newCode.trim() });
+            toast('Code-barres mis à jour', 'success');
+          } catch (err) {
+            toast(err.message || 'Erreur lors de la mise à jour', 'error');
+          }
         }
       }
+      return; // Stop pour ne pas déclencher l'edit de la ligne
+    }
+
+    // 2. Si clic sur la ligne elle-même (en dehors des boutons)
+    if (row) {
+      const id = row.dataset.id;
+      const article = getState().articles.find((a) => a.id === id);
+      if (article) openEditModal(article);
     }
   });
 
@@ -876,8 +887,18 @@ function renderInventoryRecap() {
   setEl('recap-date-updated', maxUpdated === -Infinity ? '—' : fmtDateFr(maxUpdated));
 }
 
-function wirePrintButton() {
-  $('#btn-print-inventory')?.addEventListener('click', () => window.print());
+// Lit les filtres dans l'URL (?status=...) pour pré-filtrer l'inventaire
+function handleUrlFilters() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get('status');
+  if (!status) return;
+
+  const select = $('#inventory-filter-status');
+  if (select) {
+    select.value = status;
+    tableFilter.status = status;
+    // On laisse le reload() initial déclencher le premier renderTable()
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -889,7 +910,8 @@ async function boot() {
   wireInventoryTable();
   wireEditModal();
   wireGlobalKeyboard();
-  wirePrintButton();
+  
+  handleUrlFilters();
 
   // Subscribe to state changes for both table AND recap
   subscribe((s) => {

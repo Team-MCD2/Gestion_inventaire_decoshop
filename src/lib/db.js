@@ -11,7 +11,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const TABLE = 'articles';
-const DEFAULT_SEUIL = 5;
+const DEFAULT_SEUIL = Number(readEnv('DEFAULT_SEUIL') || '5');
 
 // --- Env helpers ---------------------------------------------------------
 function readEnv(name) {

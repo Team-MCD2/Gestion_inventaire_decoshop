@@ -43,7 +43,7 @@ const authExpiresAt = Astro.locals.authExpiresAt;
     {authExpiresAt && (
       <script is:inline define:vars={{ expiresAt: authExpiresAt }}>
         // Auto-déconnexion côté client : on planifie un redirect vers /code
-        // pile au moment où le cookie de session expire (30 min après le
+        // pile au moment où le cookie de session expire (24h après le
         // login). Utile si l'utilisateur reste sur la même page sans
         // déclencher de requête au serveur.
         (function () {
@@ -51,7 +51,7 @@ const authExpiresAt = Astro.locals.authExpiresAt;
           const back = encodeURIComponent(location.pathname + location.search);
           const target = '/code?next=' + back;
           if (remaining <= 0) { location.replace(target); return; }
-          // setTimeout est plafonné à ~24,8 jours (int32) — sans risque ici (30 min).
+          // setTimeout est plafonné à ~24,8 jours (int32) — sans risque ici (24h).
           setTimeout(() => location.replace(target), remaining + 500);
         })();
       </script>
