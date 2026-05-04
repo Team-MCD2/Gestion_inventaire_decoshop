@@ -10,9 +10,12 @@ export default defineConfig({
     // Web analytics off by default ; turn on if you set up Vercel Analytics
     webAnalytics: { enabled: false },
     // Cap upload size for the photo data URL coming through /api/articles
-    maxDuration: 30,
+    maxDuration: 60,
   }),
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [
+      // @ts-ignore
+      tailwindcss()
+    ],
   },
 });

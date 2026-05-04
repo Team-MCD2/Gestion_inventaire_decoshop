@@ -84,6 +84,7 @@ async function callGroqOnce({ messages, apiKey, model }) {
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000), // Abort individual request after 15s
   });
   if (!res.ok) {
     let parsed = null;

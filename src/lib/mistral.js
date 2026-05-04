@@ -81,6 +81,7 @@ async function callMistralOnce({ messages, apiKey, model }) {
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(20000), // Abort individual request after 20s
   });
   if (!res.ok) {
     let parsed = null;
