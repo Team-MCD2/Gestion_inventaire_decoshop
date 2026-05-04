@@ -58,7 +58,7 @@ async function tryVisionLLMs({ base64DataUrl, geminiKey, model }) {
       }
     }
   }
-  throw lastError || new Error('Tous les fournisseurs LLM vision ont échoué.');
+  throw lastError || new Error('Données indisponibles');
 }
 
 function emptyToNull(v) {
@@ -112,7 +112,7 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
     const parts = [];
     if (llmError) parts.push(llmError);
     if (visionError) parts.push(visionError);
-    throw new Error(parts.join(' • ') || 'Aucun résultat IA');
+    throw new Error(parts.join(' • ') || 'Données indisponibles');
   }
 
   // Start with the LLM's structured result (or empty defaults if Vision-only).
@@ -217,5 +217,5 @@ export async function tryBarcodeLLMs({ barcode }) {
       console.warn(`[barcode-llm] ${name} ${isExhaustionError(e) ? 'exhausted' : 'failed'} (${e.message || e}), falling back to ${chain[i + 1].name}`);
     }
   }
-  throw lastError || new Error('Tous les fournisseurs LLM ont échoué pour ce code-barres.');
+  throw lastError || new Error('Données indisponibles');
 }

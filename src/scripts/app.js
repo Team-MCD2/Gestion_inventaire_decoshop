@@ -409,7 +409,7 @@ async function onBarcodeDetected(code) {
       const provider = source.slice(4);
       toast(`⚠ Suggestion IA (${LLM_LABELS[provider] || provider}) pour ${code} — vérifiez avant validation.`, 'warning', 8000);
     } else {
-      toast(notice || `Code ${code} : produit non identifié — complétez manuellement.`, 'info', 6000);
+      toast(notice || 'Données indisponibles', 'info', 6000);
     }
     await closeScanner();
   } catch (e) {
