@@ -271,10 +271,11 @@ export async function clearAllArticles() {
 export async function getStatsBundle({ topLimit = 10 } = {}) {
   const db = getDb();
 
-  // 1) Scan léger — sans photo_url
+  // 1) Scan léger — on évite photo_url qui peut contenir des data-URLs lourds
   const { data, error } = await db
     .from(TABLE)
     .select('id,numero_article,nom_produit,marque,couleur,categorie,prix_vente,quantite,seuil_stock_faible,created_at,updated_at');
+  
   if (error) rethrow('Statistiques', error);
   const rows = data || [];
 
@@ -327,25 +328,28 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.value - a.value);
 
-  // 2) Top N par valeur de stock — depuis les données déjà scannées
+  // 2) Top N par valeur de stock
   const topLight = topCandidates
     .sort((a, b) => b._value - a._value)
     .slice(0, Math.max(0, topLimit));
 
-  // 3) Récupère uniquement les photos des top N (1 requête, payload minime)
+  // 3) Récupère uniquement les photos des top N (1 requête ciblée)
   let top = topLight;
   if (topLight.length) {
-    const ids = topLight.map((a) => a.id);
-    const { data: photos, error: e2 } = await db
-      .from(TABLE)
-      .select('id,photo_url')
-      .in('id', ids);
-    if (!e2 && photos) {
-      const m = new Map(photos.map((p) => [p.id, p.photo_url]));
-      top = topLight.map((a) => ({ ...a, photo_url: m.get(a.id) || '' }));
-    } else {
-      // En cas d'échec, on renvoie le top sans photos plutôt que d'échouer.
-      top = topLight.map((a) => ({ ...a, photo_url: '' }));
+    try {
+      const ids = topLight.map((a) => a.id);
+      const { data: photos, error: e2 } = await db
+        .from(TABLE)
+        .select('id,photo_url')
+        .in('id', ids);
+      if (!e2 && photos) {
+        const m = new Map(photos.map((p) => [p.id, p.photo_url]));
+        top = topLight.map((a) => ({ ...a, photo_url: m.get(a.id) || '' }));
+      } else if (e2) {
+        console.warn('Statistiques (photos) :', e2.message);
+      }
+    } catch (err) {
+      console.warn('Statistiques (photos catch) :', err);
     }
   }
 
