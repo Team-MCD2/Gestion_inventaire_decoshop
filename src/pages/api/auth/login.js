@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import {
-  isValidCode,
+  getRoleForCode,
   makeSessionToken,
   buildSetCookie,
   SESSION_TTL_MS,
@@ -20,14 +20,15 @@ export async function POST({ request, url }) {
   }
 
   // Format attendu : 6 chiffres exactement
-  if (!/^\d{6}$/.test(code) || !isValidCode(code)) {
+  const role = getRoleForCode(code);
+  if (!/^\d{6}$/.test(code) || !role) {
     return new Response(JSON.stringify({ error: 'invalid_code' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });
   }
 
-  const token = makeSessionToken();
+  const token = makeSessionToken(role);
   const secure = url.protocol === 'https:';
   return new Response(
     JSON.stringify({ ok: true, expiresIn: SESSION_TTL_MS }),

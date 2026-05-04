@@ -57,6 +57,7 @@ export const onRequest = async (context, next) => {
   // une auto-déconnexion côté client pile à l'expiration).
   locals.authExpiresAt = session.expiresAt;
   locals.authIssuedAt = session.issuedAt;
+  locals.userRole = session.role;
 
   return next();
 };

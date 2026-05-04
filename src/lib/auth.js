@@ -7,6 +7,7 @@
 import crypto from 'node:crypto';
 
 export const ACCESS_CODE = String(process.env.APP_ACCESS_CODE || '110706').trim();
+export const ADMIN_CODE = String(process.env.APP_ADMIN_CODE || '302006').trim();
 const TTL_HOURS = Number(process.env.APP_SESSION_TTL_HOURS || '24');
 export const SESSION_TTL_MS = TTL_HOURS * 60 * 60 * 1000;
 export const COOKIE_NAME = 'dsh_auth';
@@ -26,30 +27,32 @@ function sign(payload) {
 
 /**
  * Construit la valeur de cookie pour une nouvelle session.
- * Format : "<issuedAtMs>.<hexSig>".
+ * Format : "<issuedAtMs>.<role>.<hexSig>".
  */
-export function makeSessionToken(now = Date.now()) {
+export function makeSessionToken(role = 'user', now = Date.now()) {
   const issuedAt = String(now);
-  return `${issuedAt}.${sign(issuedAt)}`;
+  const payload = `${issuedAt}.${role}`;
+  return `${payload}.${sign(payload)}`;
 }
 
 /**
  * Valide un cookie de session. Retourne :
- *   - { ok: true,  issuedAt, expiresAt }  si tout est OK
- *   - { ok: false, expired: true }        si la session est périmée
- *   - { ok: false }                       si le cookie est absent / invalide
+ *   - { ok: true,  issuedAt, expiresAt, role }  si tout est OK
+ *   - { ok: false, expired: true }              si la session est périmée
+ *   - { ok: false }                             si le cookie est absent / invalide
  */
 export function verifySessionToken(token, now = Date.now()) {
   if (!token || typeof token !== 'string') return { ok: false };
-  const dot = token.indexOf('.');
-  if (dot < 1) return { ok: false };
+  const parts = token.split('.');
+  if (parts.length !== 3) return { ok: false };
 
-  const issuedAtStr = token.slice(0, dot);
-  const sig = token.slice(dot + 1);
+  const [issuedAtStr, role, sig] = parts;
   if (!/^\d+$/.test(issuedAtStr)) return { ok: false };
   if (!/^[a-f0-9]+$/i.test(sig)) return { ok: false };
 
-  const expected = sign(issuedAtStr);
+  const payload = `${issuedAtStr}.${role}`;
+  const expected = sign(payload);
+  
   let a, b;
   try {
     a = Buffer.from(sig, 'hex');
@@ -62,16 +65,24 @@ export function verifySessionToken(token, now = Date.now()) {
   const issuedAt = Number(issuedAtStr);
   const expiresAt = issuedAt + SESSION_TTL_MS;
   if (now > expiresAt) return { ok: false, expired: true };
-  return { ok: true, issuedAt, expiresAt };
+  return { ok: true, issuedAt, expiresAt, role };
 }
 
-/** Compare le code saisi au code attendu (timing-safe). */
-export function isValidCode(input) {
-  if (typeof input !== 'string') return false;
+/** Identifie le rôle correspondant au code saisi (timing-safe). */
+export function getRoleForCode(input) {
+  if (typeof input !== 'string') return null;
   const a = Buffer.from(input);
-  const b = Buffer.from(ACCESS_CODE);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+  const bUser = Buffer.from(ACCESS_CODE);
+  const bAdmin = Buffer.from(ADMIN_CODE);
+
+  if (a.length === bAdmin.length && crypto.timingSafeEqual(a, bAdmin)) return 'admin';
+  if (a.length === bUser.length && crypto.timingSafeEqual(a, bUser)) return 'user';
+  return null;
+}
+
+/** Déprécié, utiliser getRoleForCode */
+export function isValidCode(input) {
+  return getRoleForCode(input) !== null;
 }
 
 /** Construit l'en-tête Set-Cookie pour ouvrir une session. */

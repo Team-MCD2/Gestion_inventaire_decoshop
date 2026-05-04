@@ -1,6 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import EditModal from '../components/EditModal.astro';
+
+const isAdmin = Astro.locals.userRole === 'admin';
 ---
 <Layout title="Inventaire — DECO SHOP">
   <main class="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
@@ -73,19 +75,23 @@ import EditModal from '../components/EditModal.astro';
           <option value="rupture">Rupture</option>
         </select>
         <div class="flex flex-wrap items-center gap-2">
-          <button id="btn-migrate-cloudinary" type="button"
-            class="hidden inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
-            title="Migrer les photos Base64 vers Cloudinary">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 2.5-8.242 4 4 0 0 0-7.653-1.657A4.5 4.5 0 0 0 5 10.5a4.5 4.5 0 0 0 2.5 8.242Z"/><path d="M12 13v6"/><path d="m9 16 3 3 3-3"/></svg>
-            Migrer Photos
-          </button>
-          
-          <button id="btn-export-backup" type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-            title="Exporter toute la base de données (format JSON)">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-            Backup
-          </button>
+          {isAdmin && (
+            <>
+              <button id="btn-migrate-cloudinary" type="button"
+                class="hidden inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+                title="Migrer les photos Base64 vers Cloudinary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 2.5-8.242 4 4 0 0 0-7.653-1.657A4.5 4.5 0 0 0 5 10.5a4.5 4.5 0 0 0 2.5 8.242Z"/><path d="M12 13v6"/><path d="m9 16 3 3 3-3"/></svg>
+                Migrer Photos
+              </button>
+              
+              <button id="btn-export-backup" type="button"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                title="Exporter toute la base de données (format JSON)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                Backup
+              </button>
+            </>
+          )}
           <button id="btn-export-csv" type="button"
             class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
@@ -96,18 +102,22 @@ import EditModal from '../components/EditModal.astro';
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
             PDF
           </button>
-          <button id="btn-import-csv" type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            title="Importer des articles depuis un fichier CSV">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-            Import
-          </button>
-          <input type="file" id="csv-import-input" accept=".csv" class="hidden" />
+          {isAdmin && (
+            <>
+              <button id="btn-import-csv" type="button"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                title="Importer des articles depuis un fichier CSV">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                Import
+              </button>
+              <input type="file" id="csv-import-input" accept=".csv" class="hidden" />
 
-          <button id="btn-clear-all" type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
-            Vider
-          </button>
+              <button id="btn-clear-all" type="button"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
+                Vider
+              </button>
+            </>
+          )}
         </div>
       </div>
     </section>
