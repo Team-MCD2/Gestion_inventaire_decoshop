@@ -73,6 +73,13 @@ import EditModal from '../components/EditModal.astro';
           <option value="rupture">Rupture</option>
         </select>
         <div class="flex flex-wrap items-center gap-2">
+          <button id="btn-migrate-cloudinary" type="button"
+            class="hidden inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
+            title="Migrer les photos Base64 vers Cloudinary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 2.5-8.242 4 4 0 0 0-7.653-1.657A4.5 4.5 0 0 0 5 10.5a4.5 4.5 0 0 0 2.5 8.242Z"/><path d="M12 13v6"/><path d="m9 16 3 3 3-3"/></svg>
+            Migrer Photos
+          </button>
+          
           <button id="btn-export-backup" type="button"
             class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
             title="Exporter toute la base de données (format JSON)">

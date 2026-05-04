@@ -16,6 +16,69 @@ import {
   $, escapeHtml, fmtPrice, renderStatusBadge, toast,
 } from './ui.js';
 
+// --- Cloudinary Integration ---
+async function uploadToCloudinary(fileOrDataUrl) {
+  const cloudName = import.meta.env.PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset || !fileOrDataUrl) return fileOrDataUrl;
+  // Ne pas re-uploader si c'est déjà une URL Cloudinary
+  if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.includes('cloudinary.com')) return fileOrDataUrl;
+  // Ne pas uploader si ce n'est pas une image base64 ou un fichier
+  if (typeof fileOrDataUrl === 'string' && !fileOrDataUrl.startsWith('data:image')) return fileOrDataUrl;
+
+  const formData = new FormData();
+  formData.append('file', fileOrDataUrl);
+  formData.append('upload_preset', uploadPreset);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(`Cloudinary : ${err.error?.message || res.statusText}`);
+  }
+
+  const data = await res.json();
+  return data.secure_url;
+}
+
+async function migratePhotosToCloudinary() {
+  const { articles } = getState();
+  const toMigrate = articles.filter(a => a.photo_url && a.photo_url.startsWith('data:image'));
+  
+  if (!toMigrate.length) {
+    toast('Aucune photo Base64 à migrer.', 'info');
+    return;
+  }
+
+  if (!confirm(`Migrer ${toMigrate.length} photos vers Cloudinary ?`)) return;
+
+  toast(`Migration de ${toMigrate.length} photos en cours...`, 'info', 0);
+  let success = 0;
+  let fail = 0;
+
+  for (const a of toMigrate) {
+    try {
+      const newUrl = await uploadToCloudinary(a.photo_url);
+      if (newUrl !== a.photo_url) {
+        await updateArticle(a.id, { photo_url: newUrl });
+        success++;
+      }
+    } catch (err) {
+      console.error(`Migration error for ${a.numero_article}:`, err);
+      fail++;
+    }
+  }
+
+  toast(`Migration terminée : ${success} succès, ${fail} échecs.`, success > 0 ? 'success' : 'error');
+}
+window.__decoshop = window.__decoshop || {};
+window.__decoshop.migratePhotos = migratePhotosToCloudinary;
+
+
 // Pré-débloquer le contexte audio à la première interaction utilisateur
 // (politique d'autoplay des navigateurs).
 unlockAudioOnce();
@@ -563,6 +626,11 @@ function wireCreateForm() {
       submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
     }
     try {
+      // Upload vers Cloudinary si nécessaire avant sauvegarde
+      if (data.photo_url && data.photo_url.startsWith('data:image')) {
+        toast('Téléversement de la photo...', 'info', 2000);
+        data.photo_url = await uploadToCloudinary(data.photo_url);
+      }
       await createArticle(data);
       toast('Article ajouté à l\'inventaire', 'success');
       // Petit délai pour que le toast soit lisible avant la redirection
@@ -574,6 +642,7 @@ function wireCreateForm() {
         submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
       }
     }
+
   });
 
   $('#btn-clear')?.addEventListener('click', async () => {
@@ -648,6 +717,13 @@ function wireInventoryTable() {
       if (article) openEditModal(article);
     }
   });
+
+  // Migration Cloudinary (ne s'affiche que si configuré)
+  const migBtn = $('#btn-migrate-cloudinary');
+  if (migBtn && import.meta.env.PUBLIC_CLOUDINARY_CLOUD_NAME) {
+    migBtn.classList.remove('hidden');
+    migBtn.addEventListener('click', migratePhotosToCloudinary);
+  }
 
   // Search + filter
   $('#inventory-search')?.addEventListener('input', (e) => {
@@ -837,6 +913,11 @@ function wireEditModal() {
       saveBtn.classList.add('opacity-60', 'cursor-not-allowed');
     }
     try {
+      // Upload vers Cloudinary si nécessaire avant sauvegarde
+      if (data.photo_url && data.photo_url.startsWith('data:image')) {
+        toast('Téléversement de la photo...', 'info', 2000);
+        data.photo_url = await uploadToCloudinary(data.photo_url);
+      }
       await updateArticle(editingArticleId, data);
       toast('Article mis à jour', 'success');
       closeEditModal();
@@ -852,6 +933,7 @@ function wireEditModal() {
         saveBtn.classList.remove('opacity-60', 'cursor-not-allowed');
       }
     }
+
   });
 
   $('#btn-edit-delete')?.addEventListener('click', async () => {
