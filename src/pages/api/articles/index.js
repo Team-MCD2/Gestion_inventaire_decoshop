@@ -19,6 +19,11 @@ export async function GET() {
 export async function POST({ request }) {
   try {
     const data = await request.json();
+    if (Array.isArray(data)) {
+      const { createArticles } = await import('../../../lib/db.js');
+      const results = await createArticles(data);
+      return json({ articles: results, count: results.length }, 201);
+    }
     const article = await createArticle(data);
     return json({ article }, 201);
   } catch (e) {

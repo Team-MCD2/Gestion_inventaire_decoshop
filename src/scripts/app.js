@@ -659,7 +659,60 @@ function wireInventoryTable() {
     renderTable();
   });
 
-  // Exports
+  // Exports & Import
+  $('#btn-export-backup')?.addEventListener('click', () => {
+    const { articles } = getState();
+    if (!articles.length) { toast('Aucun article à exporter', 'error'); return; }
+    try {
+      const blob = new Blob([JSON.stringify(articles, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_decoshop_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 0);
+      toast('Sauvegarde JSON téléchargée', 'success');
+    } catch (err) {
+      toast('Erreur lors de la sauvegarde', 'error');
+    }
+  });
+
+  $('#btn-import-csv')?.addEventListener('click', () => $('#csv-import-input')?.click());
+  $('#csv-import-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const text = ev.target.result;
+      const rows = parseCSV(text);
+      if (!rows.length) { toast('Fichier vide ou invalide', 'error'); return; }
+
+      if (!confirm(`Importer ${rows.length} articles ?`)) return;
+
+      toast(`Importation de ${rows.length} articles...`, 'info');
+      try {
+        const res = await fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rows)
+        });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error);
+        toast(`${json.count} articles importés avec succès !`, 'success');
+        await reload();
+      } catch (err) {
+        toast(err.message || 'Erreur lors de l\'importation', 'error');
+      }
+    };
+    reader.readAsText(file);
+  });
+
   $('#btn-export-csv')?.addEventListener('click', () => {
     const articles = filteredArticles();
     if (!articles.length) { toast('Aucun article à exporter', 'error'); return; }
@@ -925,4 +978,34 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', boot);
 } else {
   boot();
+}
+
+function parseCSV(text) {
+  const splitLine = (line) => {
+    const pattern = /("([^"]*)"|([^,;]+)|(?<=,|^|;)(?=,|$|;))/g;
+    const matches = [...line.matchAll(pattern)];
+    return matches.map(m => (m[2] !== undefined ? m[2] : m[3] || '').trim());
+  };
+
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  
+  const headers = splitLine(lines[0]).map(h => h.toLowerCase().replace(/[\s_]/g, ''));
+  const MAP = {
+    'nom': 'nom_produit', 'produit': 'nom_produit', 'nomproduit': 'nom_produit',
+    'prix': 'prix_vente', 'tarif': 'prix_vente', 'prixvente': 'prix_vente',
+    'stock': 'quantite', 'quantite': 'quantite', 'qty': 'quantite',
+    'seuil': 'seuil_stock_faible',
+    'barcode': 'code_barres', 'code': 'code_barres', 'ean': 'code_barres', 'codebarres': 'code_barres'
+  };
+
+  return lines.slice(1).map(line => {
+    const values = splitLine(line);
+    const row = {};
+    headers.forEach((h, idx) => {
+      const field = MAP[h] || h;
+      if (values[idx] !== undefined) row[field] = values[idx];
+    });
+    return row;
+  });
 }

@@ -202,6 +202,53 @@ export async function createArticle(data) {
   return decorate(inserted);
 }
 
+export async function createArticles(list) {
+  const db = getDb();
+  const now = Date.now();
+  
+  // Optimisation : on récupère les numéros existants une seule fois pour tout le lot
+  const { data: nums } = await db.from(TABLE).select('numero_article');
+  const taken = new Set((nums || []).map(r => String(r.numero_article)));
+  
+  const today = new Date();
+  const yy = String(today.getFullYear()).slice(2);
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const prefix = `DECO-${yy}${mm}${dd}-`;
+
+  const payloads = [];
+  for (const item of list) {
+    const id = item.id || (globalThis.crypto?.randomUUID?.() ?? String(now) + Math.random().toString(36).slice(2, 9));
+    
+    let numero_article = String(item.numero_article || '').trim();
+    if (!numero_article) {
+      let found = false;
+      for (let i = 0; i < 100; i++) {
+        const candidate = prefix + randomDigits(6);
+        if (!taken.has(candidate)) {
+          numero_article = candidate;
+          taken.add(candidate);
+          found = true;
+          break;
+        }
+      }
+      if (!found) numero_article = prefix + Date.now() + Math.floor(Math.random()*1000);
+    }
+
+    payloads.push({
+      id,
+      numero_article,
+      ...normalize(item),
+      created_at: now,
+      updated_at: now,
+    });
+  }
+
+  const { data, error } = await db.from(TABLE).insert(payloads).select('*');
+  if (error) rethrow('Importation des articles', error);
+  return (data || []).map(decorate);
+}
+
 export async function updateArticle(id, data) {
   const db = getDb();
   const { data: existing, error: readErr } = await db
