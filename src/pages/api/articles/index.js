@@ -8,9 +8,12 @@ function json(data, status = 200) {
   });
 }
 
-export async function GET() {
+export async function GET({ url }) {
   try {
-    return json({ articles: await listArticles() });
+    // Par défaut, on allège la liste pour éviter les photos Base64 lourdes
+    // Sauf si ?full=1 est spécifié.
+    const full = url.searchParams.get('full') === '1';
+    return json({ articles: await listArticles({ lite: !full }) });
   } catch (e) {
     return json({ error: e.message }, 500);
   }

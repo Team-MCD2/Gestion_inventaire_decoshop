@@ -31,7 +31,7 @@ function getDb() {
   const url = readEnv('SUPABASE_URL').trim();
   const key = (
     readEnv('SUPABASE_SERVICE_ROLE_KEY') ||
-    readEnv('SUPABASE_SERVICE_ROLE')     ||
+    readEnv('SUPABASE_SERVICE_ROLE') ||
     readEnv('SUPABASE_KEY')
   ).trim();
   if (!url || !key) {
@@ -42,7 +42,7 @@ function getDb() {
   }
   client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
-    db:   { schema: 'public' },
+    db: { schema: 'public' },
   });
   return client;
 }
@@ -70,18 +70,18 @@ function normalize(data, existing = null) {
     ? Number(data.quantite)
     : (existing?.quantite ?? qInit);
   return {
-    nom_produit:  String(data.nom_produit  ?? existing?.nom_produit  ?? '').trim(),
+    nom_produit: String(data.nom_produit ?? existing?.nom_produit ?? '').trim(),
     description: String(data.description ?? existing?.description ?? '').trim(),
-    marque:      String(data.marque      ?? existing?.marque      ?? '').trim(),
-    couleur:     String(data.couleur     ?? existing?.couleur     ?? '').trim(),
-    categorie:   String(data.categorie   ?? existing?.categorie   ?? '').trim(),
-    prix_vente:  Number(data.prix_vente  ?? existing?.prix_vente  ?? 0) || 0,
-    quantite:           Number.isFinite(q) ? q : 0,
-    quantite_initiale:  Number.isFinite(qInit) ? qInit : 0,
+    marque: String(data.marque ?? existing?.marque ?? '').trim(),
+    couleur: String(data.couleur ?? existing?.couleur ?? '').trim(),
+    categorie: String(data.categorie ?? existing?.categorie ?? '').trim(),
+    prix_vente: Number(data.prix_vente ?? existing?.prix_vente ?? 0) || 0,
+    quantite: Number.isFinite(q) ? q : 0,
+    quantite_initiale: Number.isFinite(qInit) ? qInit : 0,
     seuil_stock_faible: Number(data.seuil_stock_faible ?? existing?.seuil_stock_faible ?? DEFAULT_SEUIL) || DEFAULT_SEUIL,
-    photo_url:    String(data.photo_url   ?? existing?.photo_url   ?? ''),
-    code_barres:  String(data.code_barres ?? existing?.code_barres ?? '').trim(),
-    taille:       String(data.taille      ?? existing?.taille      ?? '').trim(),
+    photo_url: String(data.photo_url ?? existing?.photo_url ?? ''),
+    code_barres: String(data.code_barres ?? existing?.code_barres ?? '').trim(),
+    taille: String(data.taille ?? existing?.taille ?? '').trim(),
   };
 }
 
@@ -89,7 +89,7 @@ function normalize(data, existing = null) {
 function rethrow(prefix, error) {
   if (!error) return;
   const code = error.code || '';
-  const msg  = error.message || error.hint || error.details || 'Erreur Supabase';
+  const msg = error.message || error.hint || error.details || 'Erreur Supabase';
 
   // Common, friendly translations
   let friendly = msg;
@@ -205,11 +205,11 @@ export async function createArticle(data) {
 export async function createArticles(list) {
   const db = getDb();
   const now = Date.now();
-  
+
   // Optimisation : on récupère les numéros existants une seule fois pour tout le lot
   const { data: nums } = await db.from(TABLE).select('numero_article');
   const taken = new Set((nums || []).map(r => String(r.numero_article)));
-  
+
   const today = new Date();
   const yy = String(today.getFullYear()).slice(2);
   const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -219,7 +219,7 @@ export async function createArticles(list) {
   const payloads = [];
   for (const item of list) {
     const id = item.id || (globalThis.crypto?.randomUUID?.() ?? String(now) + Math.random().toString(36).slice(2, 9));
-    
+
     let numero_article = String(item.numero_article || '').trim();
     if (!numero_article) {
       let found = false;
@@ -232,7 +232,7 @@ export async function createArticles(list) {
           break;
         }
       }
-      if (!found) numero_article = prefix + Date.now() + Math.floor(Math.random()*1000);
+      if (!found) numero_article = prefix + Date.now() + Math.floor(Math.random() * 1000);
     }
 
     payloads.push({
@@ -322,7 +322,7 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
   const { data, error } = await db
     .from(TABLE)
     .select('id,numero_article,nom_produit,marque,couleur,categorie,prix_vente,quantite,seuil_stock_faible,created_at,updated_at');
-  
+
   if (error) rethrow('Statistiques', error);
   const rows = data || [];
 
@@ -349,7 +349,7 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
     const catKey = (r.categorie || '').trim() || 'Sans catégorie';
     const e = byCat.get(catKey) || { count: 0, qty: 0, value: 0 };
     e.count += 1;
-    e.qty   += q;
+    e.qty += q;
     e.value += v;
     byCat.set(catKey, e);
 

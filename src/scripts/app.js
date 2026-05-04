@@ -46,6 +46,10 @@ async function uploadToCloudinary(fileOrDataUrl) {
 }
 
 async function migratePhotosToCloudinary() {
+  // On s'assure d'avoir les données complètes (avec le Base64) pour la migration
+  toast('Récupération des données complètes...', 'info');
+  await reload({ full: true });
+  
   const { articles } = getState();
   const toMigrate = articles.filter(a => a.photo_url && a.photo_url.startsWith('data:image'));
   

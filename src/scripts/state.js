@@ -31,15 +31,13 @@ async function api(path, opts = {}) {
   return body;
 }
 
-export async function reload() {
+export async function reload({ full = false } = {}) {
   state.loading = true;
   state.error = null;
   emit();
   try {
-    // cache: 'no-store' force le navigateur à toujours interroger le serveur.
-    // Cela évite le problème où la liste d'articles semble vide juste après
-    // un ajout parce que le navigateur renvoie une réponse cachée périmée.
-    const res = await fetch('/api/articles', {
+    const url = full ? '/api/articles?full=1' : '/api/articles';
+    const res = await fetch(url, {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
       cache: 'no-store',
     });
