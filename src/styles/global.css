@@ -1,39 +1,145 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════════════
+   Marché de Mo' — Inventaire intelligent
+   ────────────────────────────────────────────────────────────────────────────
+   Palette officielle (cf. MarcheDeMoV2/PROMPT-MAITRE.md) :
+     - vert   #1C6B35  (primaire)
+     - rouge  #8B1919  (accent / promo / urgences)
+     - noir   #0F0F0F  (texte)
+     - blanc  #FFFFFF  (fonds)
+
+   INTERDITS absolus :
+     - Pas de beige / crème / ocre.
+     - Pas de dark mode dominant.
+     - Pas de fonts serif élégantes — Filson Pro/Soft uniquement.
+
+   On override les palettes Tailwind par défaut (indigo/amber/emerald/blue/
+   slate) pour que TOUS les utilitaires existants (text-indigo-600,
+   bg-amber-500, etc.) prennent automatiquement les couleurs Marché de Mo'
+   sans avoir à toucher chaque page.
+   ──────────────────────────────────────────────────────────────────────── */
+
 @theme {
-  --color-brand-blue: #1e3a8a;
-  --color-brand-blue-light: #2947a8;
-  --color-brand-yellow: #fbbf24;
-  --color-brand-yellow-dark: #f59e0b;
-  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* ── Tokens sémantiques (à privilégier dans le nouveau code) ─────────── */
+  --color-vert:        #1C6B35;
+  --color-vert-dark:   #0f4c21;
+  --color-vert-light:  #2e8a48;
+  --color-rouge:       #8B1919;
+  --color-rouge-dark:  #5f1010;
+  --color-rouge-light: #ad2828;
+  --color-noir:        #0F0F0F;
+
+  /* ── Police (Typekit : Filson Pro display + Filson Soft body) ────────── */
+  --font-sans:    "filson-soft", "Filson Soft", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "filson-pro",  "Filson Pro",  system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* ── Override de la palette indigo → vert (CTA primaire) ─────────────── */
+  --color-indigo-50:   #f0f7f3;
+  --color-indigo-100:  #d9eadf;
+  --color-indigo-200:  #b6d5c2;
+  --color-indigo-300:  #8cb89e;
+  --color-indigo-400:  #5e9b75;
+  --color-indigo-500:  #3b8254;
+  --color-indigo-600:  #1C6B35;
+  --color-indigo-700:  #155729;
+  --color-indigo-800:  #0f4c21;
+  --color-indigo-900:  #0a3a18;
+  --color-indigo-950:  #062510;
+
+  /* ── Override amber → rouge (CTA "Scanner code-barres") ──────────────── */
+  --color-amber-50:    #fcecec;
+  --color-amber-100:   #f7d2d2;
+  --color-amber-200:   #efa1a1;
+  --color-amber-300:   #e16e6e;
+  --color-amber-400:   #c93b3b;
+  --color-amber-500:   #8B1919;
+  --color-amber-600:   #781515;
+  --color-amber-700:   #621010;
+  --color-amber-800:   #4d0b0b;
+  --color-amber-900:   #380808;
+  --color-amber-950:   #200404;
+
+  /* ── Override emerald → vert clair (CTA secondaire "Importer photo") ── */
+  --color-emerald-50:  #ecfaf0;
+  --color-emerald-100: #d2f1db;
+  --color-emerald-200: #a8e2b9;
+  --color-emerald-300: #79cf92;
+  --color-emerald-400: #4eba6e;
+  --color-emerald-500: #2ea355;
+  --color-emerald-600: #2e8a48;
+  --color-emerald-700: #266f3a;
+  --color-emerald-800: #1f5830;
+  --color-emerald-900: #194426;
+  --color-emerald-950: #0d2916;
+
+  /* ── Override blue → vert (toute mention "blue" devient vert) ────────── */
+  --color-blue-50:     #f0f7f3;
+  --color-blue-100:    #d9eadf;
+  --color-blue-200:    #b6d5c2;
+  --color-blue-300:    #8cb89e;
+  --color-blue-400:    #5e9b75;
+  --color-blue-500:    #3b8254;
+  --color-blue-600:    #1C6B35;
+  --color-blue-700:    #155729;
+  --color-blue-800:    #0f4c21;
+  --color-blue-900:    #0a3a18;
+  --color-blue-950:    #062510;
+
+  /* ── Override slate → noir/blanc (fonds & texte, PAS de beige) ───────── */
+  --color-slate-50:    #FFFFFF;
+  --color-slate-100:   #F6F6F4;
+  --color-slate-200:   #E8E8E5;
+  --color-slate-300:   #CECECA;
+  --color-slate-400:   #999996;
+  --color-slate-500:   #666663;
+  --color-slate-600:   #44443F;
+  --color-slate-700:   #2A2A26;
+  --color-slate-800:   #1A1A17;
+  --color-slate-900:   #0F0F0F;
+  --color-slate-950:   #050505;
 }
 
+/* ── Application root ───────────────────────────────────────────────────── */
 html {
   font-family: var(--font-sans);
-  background: #f6f7fb;
-  color: #0f172a;
+  background: #FFFFFF;
+  color: var(--color-noir);
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   min-height: 100vh;
   min-height: 100dvh;
+  background: #FFFFFF;
 }
 
-/* Custom scrollbar */
+/* Titres : police display Filson Pro */
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Tabular numbers pour les colonnes prix/quantité */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Scrollbar custom ───────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-thumb { background: #CECECA; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #999996; }
 
-/* Hide number input arrows */
+/* ── Number inputs sans flèches ─────────────────────────────────────────── */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none; margin: 0;
 }
-input[type="number"] { -moz-appearance: textfield; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
-/* Scanner video mirror off, cover */
+/* ── Vidéo scanner ──────────────────────────────────────────────────────── */
 .scanner-video {
   width: 100%;
   height: 100%;
@@ -41,34 +147,40 @@ input[type="number"] { -moz-appearance: textfield; }
   background: #000;
 }
 
-/* Pulse animation for capture */
+/* ── Animations ─────────────────────────────────────────────────────────── */
+
+/* Halo de pulsation autour du bouton "Capturer" */
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.6); }
-  70% { box-shadow: 0 0 0 16px rgba(251, 191, 36, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+  0%   { box-shadow: 0 0 0 0   rgba(28, 107, 53, 0.55); }
+  70%  { box-shadow: 0 0 0 16px rgba(28, 107, 53, 0);   }
+  100% { box-shadow: 0 0 0 0   rgba(28, 107, 53, 0);   }
 }
 .pulse-ring { animation: pulse-ring 1.6s infinite; }
 
-/* Shine loader */
+/* Loader shimmer (skeleton) */
 @keyframes shine {
-  0% { background-position: -200% 0; }
+  0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 .shine {
-  background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 40%, #e2e8f0 80%);
+  background: linear-gradient(90deg, #E8E8E5 0%, #F6F6F4 40%, #E8E8E5 80%);
   background-size: 200% 100%;
   animation: shine 1.4s ease-in-out infinite;
 }
 
-/* Barcode scan line */
+/* Ligne de scan code-barres */
 @keyframes scan-line {
   0%, 100% { transform: translateY(-100%); }
-  50% { transform: translateY(100%); }
+  50%      { transform: translateY(100%);  }
 }
-.scan-line {
-  animation: scan-line 2s ease-in-out infinite;
-}
+.scan-line { animation: scan-line 2s ease-in-out infinite; }
 
-/* Toast */
-.toast-enter { transform: translateY(-20px); opacity: 0; }
-.toast-enter-active { transform: translateY(0); opacity: 1; transition: all 200ms ease; }
+/* Toast transitions */
+.toast-enter        { transform: translateY(-20px); opacity: 0; }
+.toast-enter-active { transform: translateY(0);     opacity: 1; transition: all 200ms ease; }
+
+/* ── Sélection de texte aux couleurs de la marque ───────────────────────── */
+::selection {
+  background: rgba(28, 107, 53, 0.18);
+  color: var(--color-noir);
+}

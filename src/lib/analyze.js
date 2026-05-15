@@ -72,8 +72,8 @@ function emptyToNull(v) {
  * Hybrid image analysis.
  * Runs the vision LLM chain (Gemini -> Groq -> Mistral) and Cloud Vision in
  * parallel, then merges. Returns { merged, sources } where:
- *   merged is a normalized article (categorie, marque, couleur, description,
- *     code_barres, taille, prix_vente).
+ *   merged is a normalized article aligned with the grocery schema
+ *     (rayon, nom_produit, marque, format, code_barres, description, prix_vente).
  *   sources.llmProvider tells which LLM produced the result ('gemini'|'groq'|'mistral').
  */
 export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, model }) {
@@ -116,14 +116,14 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
   }
 
   // Start with the LLM's structured result (or empty defaults if Vision-only).
-  // Field names aligned on MCD (cf. mcd_mld.md §2 articles)
+  // Field names aligned on the grocery schema (cf. supabase/schema.sql §1).
   const merged = {
-    categorie:     llmResult?.categorie     ?? '',
+    rayon:         llmResult?.rayon         ?? '',
+    nom_produit:   llmResult?.nom_produit   ?? '',
     marque:        llmResult?.marque        ?? '',
-    couleur:       llmResult?.couleur       ?? '',
-    description:   llmResult?.description   ?? '',
+    format:        llmResult?.format        ?? '',
     code_barres:   llmResult?.code_barres   ?? '',
-    taille:        llmResult?.taille        ?? '',
+    description:   llmResult?.description   ?? '',
     prix_vente:    Number(llmResult?.prix_vente) || 0,
   };
 
@@ -146,20 +146,20 @@ export async function analyzeImageHybrid({ base64DataUrl, geminiKey, visionKey, 
       if (!llmCodeIsNumeric) merged.code_barres = visionExtract.code_barres;
     }
 
-    // taille : OCR plus fiable que LLM-estimation → écrase si trouvé
-    if (visionExtract.taille) merged.taille = visionExtract.taille;
+    // format (ex-taille) : OCR plus fiable que LLM-estimation pour les poids/volumes
+    // → écrase si trouvé. visionExtract.format hérite de l'ancien champ `taille`
+    // (rétro-compat lib/vision.js — voir extractFromVision).
+    const visionFormat = visionExtract.format || visionExtract.taille;
+    if (visionFormat) merged.format = visionFormat;
 
     // prix_vente : OCR du prix sur l'étiquette = prix réel → écrase l'estimation
     if (visionExtract.detectedPrice > 0) merged.prix_vente = visionExtract.detectedPrice;
 
-    // couleur : le LLM est souvent plus nuancé ("Bois clair") → ne remplit que si vide
-    if (visionExtract.couleur && !emptyToNull(merged.couleur)) {
-      merged.couleur = visionExtract.couleur;
-    }
-
-    // categorie : LLM d'abord (mappe sur notre liste fermée), Vision en fallback
-    if (visionExtract.fallbackCategorie && !emptyToNull(merged.categorie)) {
-      merged.categorie = visionExtract.fallbackCategorie;
+    // rayon : LLM d'abord (mappe sur notre liste fermée), Vision en fallback.
+    // visionExtract.fallbackRayon hérite de l'ancien fallbackCategorie.
+    const visionRayon = visionExtract.fallbackRayon || visionExtract.fallbackCategorie;
+    if (visionRayon && !emptyToNull(merged.rayon)) {
+      merged.rayon = visionRayon;
     }
   }
 

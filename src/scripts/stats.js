@@ -4,8 +4,8 @@ import Chart from 'chart.js/auto';
 import { $, escapeHtml, fmtPrice, fmtPriceCompact, toast } from './ui.js';
 
 const PALETTE = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316',
-  '#eab308', '#10b981', '#14b8a6', '#06b6d4', '#3b82f6', '#94a3b8',
+  '#1C6B35', '#2D8A4E', '#8B1919', '#A62424', '#3EB067',
+  '#C12F2F', '#4ED17F', '#DC3A3A', '#5FF297', '#F74545', '#94a3b8',
 ];
 
 function fmtInt(n) {
@@ -73,7 +73,7 @@ function showError(msg) {
     overlay.innerHTML = `
       <div class="text-center px-3">
         <div class="text-xs font-semibold text-slate-600">Données indisponibles</div>
-        <button class="stats-retry mt-2 text-xs underline font-semibold text-indigo-600 hover:text-indigo-700">Réessayer</button>
+        <button class="stats-retry mt-2 text-xs underline font-semibold text-vert-600 hover:text-vert-700">Réessayer</button>
       </div>
     `;
   });
@@ -84,7 +84,7 @@ function showError(msg) {
     top.innerHTML = `
       <div class="py-8 text-center text-sm text-slate-400">
         Impossible de charger les statistiques.
-        <button class="stats-retry block mx-auto mt-2 underline font-semibold text-indigo-600 hover:text-indigo-700">Réessayer</button>
+        <button class="stats-retry block mx-auto mt-2 underline font-semibold text-vert-600 hover:text-vert-700">Réessayer</button>
       </div>
     `;
   }
@@ -226,14 +226,14 @@ function openStatArticleModal(article) {
         ? `<img src="${escapeHtml(article.photo_url)}" alt="" class="h-20 w-20 rounded-xl object-cover ring-1 ring-slate-200 shrink-0" />`
         : `<div class="h-20 w-20 shrink-0 rounded-xl bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-slate-300"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>`}
       <div class="min-w-0 flex-1">
-        ${article.nom_produit ? `<div class="text-xs text-indigo-600 font-semibold mb-0.5">${escapeHtml(article.nom_produit)}</div>` : ''}
+        ${article.nom_produit ? `<div class="text-xs text-vert font-semibold mb-0.5">${escapeHtml(article.nom_produit)}</div>` : ''}
         <div class="text-lg font-bold text-slate-900 truncate">
           ${escapeHtml(article.marque || article.numero_article || '—')}
-          ${article.couleur ? `<span class="text-slate-400 font-normal text-base"> · ${escapeHtml(article.couleur)}</span>` : ''}
+          ${article.dlc ? `<span class="text-slate-400 font-normal text-base"> · ${escapeHtml(article.dlc)}</span>` : ''}
         </div>
         <div class="flex flex-wrap gap-1.5 mt-1.5">
           <span class="font-mono text-xs text-slate-500">${escapeHtml(article.numero_article || '')}</span>
-          ${article.categorie ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(article.categorie)}</span>` : ''}
+          ${article.rayon ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(article.rayon)}</span>` : ''}
           <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statutCls}">${STATUS[statut] || statut}</span>
         </div>
       </div>
@@ -245,7 +245,7 @@ function openStatArticleModal(article) {
       </div>
       <div>
         <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Valeur stock</dt>
-        <dd class="mt-0.5 font-bold text-indigo-600">${fmtPrice(article._value) || '—'}</dd>
+        <dd class="mt-0.5 font-bold text-vert-600">${fmtPrice(article._value) || '—'}</dd>
       </div>
       <div>
         <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Quantité actuelle</dt>
@@ -261,7 +261,7 @@ function openStatArticleModal(article) {
       </div>
     </dl>
     <div class="mt-5 flex justify-end">
-      <a href="/inventaire" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+      <a href="/inventaire" class="inline-flex items-center gap-1.5 rounded-lg bg-vert px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vert-700">
         Voir dans l'inventaire
       </a>
     </div>
@@ -305,18 +305,18 @@ function renderTopList(topServer) {
 
   const maxValue = top[0]._value || 1;
   list.innerHTML = top.map((a, i) => `
-    <div class="top-row flex items-center gap-3 p-2 rounded-lg hover:bg-indigo-50 cursor-pointer transition group" data-idx="${i}" title="Cliquer pour voir le détail">
-      <div class="h-7 w-7 shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-700 transition">${i + 1}</div>
+    <div class="top-row flex items-center gap-3 p-2 rounded-lg hover:bg-vert-50 cursor-pointer transition group" data-idx="${i}" title="Cliquer pour voir le détail">
+      <div class="h-7 w-7 shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 group-hover:bg-vert-100 group-hover:text-vert-700 transition">${i + 1}</div>
       ${a.photo_url
         ? `<img src="${a.photo_url}" alt="" class="h-10 w-10 shrink-0 object-cover rounded-md ring-1 ring-slate-200" />`
         : '<div class="h-10 w-10 shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-slate-300"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>'}
       <div class="min-w-0 flex-1">
-        <div class="text-sm font-semibold text-slate-900 truncate group-hover:text-indigo-700 transition">
+        <div class="text-sm font-semibold text-slate-900 truncate group-hover:text-vert-700 transition">
           ${escapeHtml(a.nom_produit || a.marque || a.numero_article || '—')}
-          ${a.couleur ? `<span class="text-slate-400 font-normal"> · ${escapeHtml(a.couleur)}</span>` : ''}
+          ${a.dlc ? `<span class="text-slate-400 font-normal"> · ${escapeHtml(a.dlc)}</span>` : ''}
         </div>
         <div class="mt-1 relative h-1.5 rounded-full bg-slate-100 overflow-hidden">
-          <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" style="width: ${(a._value / maxValue * 100).toFixed(1)}%"></div>
+          <div class="absolute inset-y-0 left-0 bg-gradient-to-r from-vert to-emerald-500 rounded-full" style="width: ${(a._value / maxValue * 100).toFixed(1)}%"></div>
         </div>
       </div>
       <div class="text-right shrink-0">

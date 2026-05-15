@@ -1,4 +1,4 @@
-// Petite couche d'authentification "code d'accès" pour DECO SHOP.
+// Petite couche d'authentification "code d'accès" pour Marché de Mo' — Inventaire.
 //
 // - Code à 6 chiffres (par défaut 110706, surchargeable via APP_ACCESS_CODE).
 // - Session de 24 heures matérialisée par un cookie HttpOnly signé HMAC-SHA256.
@@ -19,7 +19,7 @@ export const COOKIE_NAME = 'dsh_auth';
 const SECRET =
   process.env.APP_AUTH_SECRET ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  'decoshop-default-secret-change-me';
+  'marchedemo-default-secret-change-me';
 
 function sign(payload) {
   return crypto.createHmac('sha256', SECRET).update(payload).digest('hex');

@@ -19,7 +19,7 @@ function showState(state) {
   $('#scan-result')?.classList.toggle('hidden', state !== 'result');
 }
 
-// EAN/UPC : 8 à 14 chiffres uniquement. Pas de DECO-..., pas de lettres.
+// EAN/UPC : 8 à 14 chiffres uniquement.
 function looksLikeBarcode(s) {
   return /^\d{8,14}$/.test(String(s || '').trim().replace(/[\s\-]/g, ''));
 }
@@ -46,7 +46,7 @@ function renderNotFound(query) {
         </p>
       </div>
 
-      <div class="p-6 md:p-8 bg-gradient-to-br from-indigo-50 to-blue-50">
+      <div class="p-6 md:p-8 bg-gradient-to-br from-vert-50 to-emerald-50">
         <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
           <div class="flex-1">
             <h3 class="text-base font-bold text-slate-900">Voulez-vous l'ajouter à l'inventaire ?</h3>
@@ -62,7 +62,7 @@ function renderNotFound(query) {
               Non, recommencer
             </button>
             <a href="${ajouterHref}"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+              class="inline-flex items-center gap-1.5 rounded-lg bg-vert px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vert-700">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
               Oui, ajouter cet article
             </a>
@@ -96,12 +96,12 @@ function articleCardHTML(article) {
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2 mb-2">
           <span class="font-mono text-xs font-semibold text-slate-500">${escapeHtml(article.numero_article || '')}</span>
-          ${article.categorie ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(article.categorie)}</span>` : ''}
+          ${article.rayon ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(article.rayon)}</span>` : ''}
           ${renderStatusBadge(article.statut)}
         </div>
-        ${article.nom_produit ? `<h3 class="text-base font-semibold text-indigo-700 mb-0.5">${escapeHtml(article.nom_produit)}</h3>` : ''}
+        ${article.nom_produit ? `<h3 class="text-base font-semibold text-vert-700 mb-0.5">${escapeHtml(article.nom_produit)}</h3>` : ''}
         <h2 class="text-lg md:text-xl font-bold text-slate-900 truncate">
-          ${escapeHtml(article.marque || '')}${article.marque && article.couleur ? ' · ' : ''}${escapeHtml(article.couleur || '')}
+          ${escapeHtml(article.marque || '')}${article.marque && article.dlc ? ' · ' : ''}${escapeHtml(article.dlc || '')}
         </h2>
         ${article.description ? `<p class="text-sm text-slate-600 mt-1 line-clamp-3">${escapeHtml(article.description)}</p>` : ''}
 
@@ -115,18 +115,18 @@ function articleCardHTML(article) {
             <dd class="mt-0.5 font-bold text-slate-900 tabular-nums">${article.quantite ?? 0} <span class="text-xs font-normal text-slate-500">/ ${article.quantite_initiale ?? 0}</span></dd>
           </div>
           <div>
-            <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Code-barres</dt>
-            <dd class="mt-0.5 font-mono text-xs text-slate-700 truncate">${escapeHtml(article.code_barres || '—')}</dd>
+            <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Format</dt>
+            <dd class="mt-0.5 text-slate-700 truncate">${escapeHtml(article.format || '—')}</dd>
           </div>
           <div>
-            <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Taille</dt>
-            <dd class="mt-0.5 text-slate-700 truncate">${escapeHtml(article.taille || '—')}</dd>
+            <dt class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Magasin</dt>
+            <dd class="mt-0.5 text-slate-700 truncate italic">${escapeHtml(article.magasin || '—')}</dd>
           </div>
         </dl>
 
         <div class="mt-5 flex flex-wrap items-center gap-2">
           <button data-article-edit="true" data-article-id="${escapeHtml(article.id)}" type="button"
-            class="btn-scan-edit inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+            class="btn-scan-edit inline-flex items-center gap-1.5 rounded-lg bg-vert px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vert-700">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             Éditer cet article
           </button>

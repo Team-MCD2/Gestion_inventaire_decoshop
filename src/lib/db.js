@@ -1,17 +1,24 @@
-// Supabase Postgres data layer.
-// Replaces the previous libsql/Turso implementation. The exported API
-// (listArticles, getArticle, nextNumArticle, createArticle, updateArticle,
-// deleteArticle, clearAllArticles, computeStatut) is unchanged so the API
-// routes (src/pages/api/...) and the client need no modification.
+// Supabase Postgres data layer — Marche de Mo' grocery inventory.
+// API exportee (listArticles, getArticle, nextNumArticle, createArticle,
+// updateArticle, deleteArticle, clearAllArticles, computeStatut, getStatsBundle,
+// findArticleByCode, getSyncStatus) consommee par toutes les API routes
+// (src/pages/api/...) ET par le client via fetch.
 //
-// We always run server-side (Astro SSR / Vercel functions) and use the
-// SERVICE_ROLE key which bypasses RLS. Never expose this key to the browser.
+// Server-side uniquement (Astro SSR / Vercel functions) avec la SERVICE_ROLE
+// key qui bypasse la RLS. Cette cle ne doit JAMAIS etre exposee au navigateur.
 //
-// Schema lives in supabase/schema.sql — run it once in the Supabase SQL editor.
+// Schema : supabase/schema.sql (a executer dans le SQL editor Supabase).
+// Champs metier : rayon, format, dlc, magasin (cf. RAYONS / MAGASINS in
+// src/lib/rayons.js pour les enums autorises).
 import { createClient } from '@supabase/supabase-js';
+import { RAYON_SLUGS, MAGASIN_SLUGS } from './rayons.js';
 
 const TABLE = 'articles';
 const DEFAULT_SEUIL = Number(readEnv('DEFAULT_SEUIL') || '5');
+
+// Prefixe des numeros d'article generes. Les anciens DECO-* en base sont
+// conserves tels quels ; seules les nouvelles creations utilisent MDM-*.
+const NUM_PREFIX = 'MDM';
 
 // --- Env helpers ---------------------------------------------------------
 function readEnv(name) {
@@ -62,6 +69,11 @@ function decorate(row) {
 }
 
 // --- Helpers ------------------------------------------------------------
+// Normalise un payload (création ou édition) vers la forme stricte attendue
+// par Postgres. Tous les champs texte sont .trim()-és, les nombres coercés,
+// et les enums (rayon, magasin) validés contre rayons.js — une valeur
+// invalide est silencieusement remplacée par '' pour ne pas casser la
+// contrainte CHECK côté DB.
 function normalize(data, existing = null) {
   const qInit = data.quantite_initiale !== undefined && data.quantite_initiale !== ''
     ? Number(data.quantite_initiale)
@@ -69,19 +81,43 @@ function normalize(data, existing = null) {
   const q = data.quantite !== undefined && data.quantite !== ''
     ? Number(data.quantite)
     : (existing?.quantite ?? qInit);
+
+  // Rayon : on accepte le slug brut, et on retombe sur '' si inconnu.
+  const rawRayon = String(data.rayon ?? existing?.rayon ?? '').trim().toLowerCase();
+  const rayon = RAYON_SLUGS.includes(rawRayon) ? rawRayon : '';
+
+  // Magasin : enum strict (' ' | portet | toulouse-sud | tous).
+  const rawMagasin = String(data.magasin ?? existing?.magasin ?? '').trim().toLowerCase();
+  const magasin = MAGASIN_SLUGS.includes(rawMagasin) ? rawMagasin : '';
+
+  // DLC : on accepte une chaîne 'YYYY-MM-DD' (format DB date) ou '' / null.
+  // Tout autre format est ignoré silencieusement pour ne pas faire planter
+  // l'API si le LLM renvoie une date mal formée.
+  const rawDlc = data.dlc !== undefined ? data.dlc : existing?.dlc;
+  let dlc = null;
+  if (rawDlc) {
+    const s = String(rawDlc).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, mo, d] = s.split('-').map(Number);
+      const dt = new Date(y, mo - 1, d);
+      if (dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d) dlc = s;
+    }
+  }
+
   return {
     nom_produit: String(data.nom_produit ?? existing?.nom_produit ?? '').trim(),
     description: String(data.description ?? existing?.description ?? '').trim(),
     marque: String(data.marque ?? existing?.marque ?? '').trim(),
-    couleur: String(data.couleur ?? existing?.couleur ?? '').trim(),
-    categorie: String(data.categorie ?? existing?.categorie ?? '').trim(),
+    rayon,
+    format: String(data.format ?? existing?.format ?? '').trim(),
+    code_barres: String(data.code_barres ?? existing?.code_barres ?? '').trim(),
+    dlc,
+    magasin,
     prix_vente: Number(data.prix_vente ?? existing?.prix_vente ?? 0) || 0,
     quantite: Number.isFinite(q) ? q : 0,
     quantite_initiale: Number.isFinite(qInit) ? qInit : 0,
     seuil_stock_faible: Number(data.seuil_stock_faible ?? existing?.seuil_stock_faible ?? DEFAULT_SEUIL) || DEFAULT_SEUIL,
     photo_url: String(data.photo_url ?? existing?.photo_url ?? ''),
-    code_barres: String(data.code_barres ?? existing?.code_barres ?? '').trim(),
-    taille: String(data.taille ?? existing?.taille ?? '').trim(),
   };
 }
 
@@ -141,10 +177,11 @@ export async function getArticle(id) {
   return decorate(data);
 }
 
-// Format : DECO-YYMMDD-NNNNNN — la date sert d'horodatage, le NNNNNN
-// est tiré aléatoirement (000000-999999) avec vérification d'unicité côté DB.
-// On lit les numéros déjà utilisés (toutes dates confondues) et on retire
-// jusqu'à trouver un libre. Au-delà de 50 essais, on élargit à 9 digits.
+// Format : MDM-YYMMDD-NNNNNN — la date sert d'horodatage, le NNNNNN est
+// tiré aléatoirement (000000-999999) avec vérification d'unicité côté DB.
+// On lit les numéros déjà utilisés (toutes dates confondues, y compris les
+// anciens DECO-*) et on retire jusqu'à trouver un libre. Au-delà de 50
+// essais, on élargit à 9 digits.
 function randomDigits(n) {
   let s = '';
   for (let i = 0; i < n; i++) s += Math.floor(Math.random() * 10);
@@ -156,7 +193,7 @@ export async function nextNumArticle() {
   const yy = String(today.getFullYear()).slice(2);
   const mm = String(today.getMonth() + 1).padStart(2, '0');
   const dd = String(today.getDate()).padStart(2, '0');
-  const prefix = `DECO-${yy}${mm}${dd}-`;
+  const prefix = `${NUM_PREFIX}-${yy}${mm}${dd}-`;
 
   const db = getDb();
   const { data, error } = await db
@@ -214,7 +251,7 @@ export async function createArticles(list) {
   const yy = String(today.getFullYear()).slice(2);
   const mm = String(today.getMonth() + 1).padStart(2, '0');
   const dd = String(today.getDate()).padStart(2, '0');
-  const prefix = `DECO-${yy}${mm}${dd}-`;
+  const prefix = `${NUM_PREFIX}-${yy}${mm}${dd}-`;
 
   const payloads = [];
   for (const item of list) {
@@ -321,7 +358,7 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
   // 1) Scan léger — on évite photo_url qui peut contenir des data-URLs lourds
   const { data, error } = await db
     .from(TABLE)
-    .select('id,numero_article,nom_produit,marque,couleur,categorie,prix_vente,quantite,seuil_stock_faible,created_at,updated_at');
+    .select('id,numero_article,nom_produit,marque,rayon,format,dlc,magasin,prix_vente,quantite,seuil_stock_faible,created_at,updated_at');
 
   if (error) rethrow('Statistiques', error);
   const rows = data || [];
@@ -346,7 +383,7 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
     if (q <= 0) out += 1;
     else if (q <= seuil) low += 1;
 
-    const catKey = (r.categorie || '').trim() || 'Sans catégorie';
+    const catKey = (r.rayon || '').trim() || 'sans-rayon';
     const e = byCat.get(catKey) || { count: 0, qty: 0, value: 0 };
     e.count += 1;
     e.qty += q;
@@ -359,8 +396,10 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
         numero_article: r.numero_article,
         nom_produit: r.nom_produit,
         marque: r.marque,
-        couleur: r.couleur,
-        categorie: r.categorie,
+        rayon: r.rayon,
+        format: r.format,
+        dlc: r.dlc,
+        magasin: r.magasin,
         prix_vente: p,
         quantite: q,
         created_at: r.created_at,
@@ -371,9 +410,13 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
   }
 
   const in_stock = total - low - out;
-  const by_category = [...byCat.entries()]
+  // Renommé by_category → by_rayon (même structure : [{name, count, qty, value}]).
+  // On garde un alias by_category pour la rétro-compat des consommateurs UI
+  // qui n'auraient pas encore été mis à jour.
+  const by_rayon = [...byCat.entries()]
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.value - a.value);
+  const by_category = by_rayon;
 
   // 2) Top N par valeur de stock
   const topLight = topCandidates
@@ -408,7 +451,8 @@ export async function getStatsBundle({ topLimit = 10 } = {}) {
     out,
     in_stock,
     status_counts: { en_stock: in_stock, stock_faible: low, rupture: out },
-    by_category,
+    by_rayon,
+    by_category, // alias rétro-compat (mêmes données que by_rayon)
     top,
   };
 }

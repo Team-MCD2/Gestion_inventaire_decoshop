@@ -229,7 +229,7 @@ function renderTable() {
         <div class="line-clamp-2 text-slate-700">${escapeHtml(a.description || '—')}</div>
       </td>
       <td class="px-3 py-2 text-slate-700">${escapeHtml(a.marque || '—')}</td>
-      <td class="px-3 py-2 text-slate-700">${escapeHtml(a.categorie || '—')}</td>
+      <td class="px-3 py-2 text-slate-700">${escapeHtml(a.rayon || '—')}</td>
       <td class="px-3 py-2 font-mono text-xs font-semibold text-slate-600">${hasCode ? escapeHtml(a.code_barres) : '—'}</td>
       <td class="px-3 py-2 text-right tabular-nums font-semibold">${a.quantite ?? 0}</td>
       <td class="px-3 py-2 text-center">${actions}</td>
@@ -396,7 +396,7 @@ function renderLabels(items) {
     <div class="label-card flex flex-col items-center justify-center p-3 rounded-lg ring-1 ring-slate-200 bg-white"
          style="animation-delay: ${delay}ms;">
       <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 truncate w-full text-center">
-        ${escapeHtml(it.article.marque || it.article.categorie || 'DECO SHOP')}
+        ${escapeHtml(it.article.marque || it.article.rayon || "Marché de Mo'")}
       </div>
       <div class="text-xs font-medium text-slate-800 line-clamp-2 mb-2 text-center min-h-[2.5em]">
         ${escapeHtml(it.article.description || it.article.numero_article)}
@@ -449,8 +449,8 @@ async function downloadPdf(itemsToExport = null) {
       if (page > 0) doc.addPage();
       const { article, code } = it;
 
-      // Titre (marque ou catégorie)
-      const brand = (article.marque || article.categorie || 'DECO SHOP').toString();
+      // Titre (marque ou rayon)
+      const brand = (article.marque || article.rayon || "Marché de Mo'").toString();
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7);
       doc.setTextColor(0);
@@ -479,7 +479,7 @@ async function downloadPdf(itemsToExport = null) {
     }
 
     const ts = new Date().toISOString().slice(0, 10);
-    doc.save(`etiquettes-deco-shop-${ts}.pdf`);
+    doc.save(`etiquettes-marchedemo-${ts}.pdf`);
     toast('PDF téléchargé', 'success');
   } catch (e) {
     console.error(e);
@@ -571,7 +571,7 @@ async function downloadSelectedImages() {
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
     const ts = new Date().toISOString().slice(0, 10);
-    downloadDataUrl(url, `codes-barres-deco-shop-${ts}.zip`);
+    downloadDataUrl(url, `codes-barres-marchedemo-${ts}.zip`);
     URL.revokeObjectURL(url);
     toast(`${items.length} images téléchargées (ZIP)`, 'success');
   } catch (e) {

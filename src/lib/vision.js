@@ -1,5 +1,9 @@
 // Server-side Google Cloud Vision helper
-// Uses simple API key auth (REST endpoint), no service account needed
+// Uses simple API key auth (REST endpoint), no service account needed.
+//
+// Marché de Mo' grocery — extracts EAN, format (poids/volume), DLC, prix et
+// devine le rayon depuis les labels OCR (cf. extractFromVision en bas).
+import { guessRayonFromText } from './rayons.js';
 
 function readEnv(name) {
   try {
@@ -92,72 +96,76 @@ export async function visionAnnotate(base64DataUrl, { apiKey } = {}) {
 }
 
 // ---- Field extractors ----------------------------------------------------
+// EAN-8 / UPC-A / EAN-13 / GTIN-14
 const EAN_REGEX = /\b(\d{8}|\d{12,14})\b/;
 
-// dimension patterns: "120 x 60", "L120 x l60 x H75", "Ø30 cm"
-const DIM_REGEX = /\b\d{1,4}(?:[.,]\d+)?\s*(?:cm|mm|m)?\s*[x×]\s*\d{1,4}(?:[.,]\d+)?\s*(?:cm|mm|m)?(?:\s*[x×]\s*\d{1,4}(?:[.,]\d+)?\s*(?:cm|mm|m)?)?\b/i;
-const DIAM_REGEX = /[Ø∅⌀]\s*\d{1,4}(?:[.,]\d+)?\s*(?:cm|mm|m)?/;
+// Format/poids/volume grocery — couvre la majorité des emballages :
+//   "500g", "1.5 kg", "1L", "200 ml", "12 unités", "6 x 33cl", "70 cl",
+//   "1,5 L", "350 g e", "Net wt 500g"
+const FORMAT_REGEX_LIST = [
+  /\b\d{1,4}(?:[.,]\d+)?\s*(?:x|×)\s*\d{1,4}(?:[.,]\d+)?\s*(?:g|kg|ml|cl|l|L)\b/i,         // "6 x 33cl"
+  /\b\d{1,4}(?:[.,]\d+)?\s*(?:kg|g|mg)\b(?!\w)/i,                                          // "500g" / "1,5 kg"
+  /\b\d{1,4}(?:[.,]\d+)?\s*(?:L|ml|cl|dl)\b(?!\w)/i,                                       // "1L" / "200 ml"
+  /\b\d{1,4}\s*(?:unit[ée]s?|pi[èe]ces?|pcs|pack|bouteilles?|sachets?)\b/i,                // "12 unités"
+];
 
 // price patterns: "12,99 €", "12.99€", "EUR 12.99"
 const PRICE_REGEX = /(\d+(?:[.,]\d{1,2}))\s*(?:€|EUR\b)|(?:€|EUR)\s*(\d+(?:[.,]\d{1,2}))/i;
 
-// Convert an RGB color (0-255 each) to a coarse French color name. Used to
-// fill the 'couleur' field from Cloud Vision's dominant-color analysis.
-function rgbToFrenchColor({ r, g, b }) {
-  if (r == null) return '';
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
+// Note : on n'extrait plus la couleur dominante (champ obsolète depuis le
+// passage au grocery — cf. supabase/schema.sql). Le helper rgbToFrenchColor
+// a été retiré ; l'analyse d'image se concentre sur les champs métier
+// utiles aux équipes magasin (EAN, format, DLC, prix, marque, rayon).
 
-  // Achromatic (gray axis)
-  if (delta < 25) {
-    if (max < 50)  return 'Noir';
-    if (max < 100) return 'Gris foncé';
-    if (max < 180) return 'Gris';
-    if (max < 230) return 'Gris clair';
-    return 'Blanc';
-  }
+// DLC patterns — détecte la date sur l'étiquette ("À consommer avant le 12/06/2026")
+// Formats acceptés : DD/MM/YYYY · DD.MM.YYYY · DD-MM-YYYY · DD/MM/YY
+const DLC_PHRASE_REGEX = /(?:à\s*consommer\s*(?:avant|jusqu['’]au)\s*(?:le)?|DLC|DDM|date\s*limite|best\s*before|exp\.?|expire)\s*[: ]*\s*(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})/i;
+const DATE_FALLBACK_REGEX = /\b(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})\b/;
 
-  // HSL conversion for hue
-  const r1 = r / 255, g1 = g / 255, b1 = b / 255;
-  const mx = Math.max(r1, g1, b1), mn = Math.min(r1, g1, b1);
-  const l = (mx + mn) / 2;
-  const d = mx - mn;
-  let h = 0;
-  if (d > 0) {
-    if (mx === r1) h = ((g1 - b1) / d) % 6;
-    else if (mx === g1) h = (b1 - r1) / d + 2;
-    else h = (r1 - g1) / d + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
-
-  if (s < 0.15) return l < 0.4 ? 'Gris foncé' : (l > 0.7 ? 'Gris clair' : 'Gris');
-
-  // Brown : low lightness, low-medium saturation, hue 15-50
-  if (h >= 15 && h <= 50 && l < 0.45 && s < 0.7) return 'Marron';
-  // Beige : high lightness, low-medium saturation, hue 30-60
-  if (h >= 30 && h <= 60 && l > 0.7 && s < 0.5) return 'Beige';
-
-  if (h < 15 || h >= 345) return 'Rouge';
-  if (h < 35)  return 'Orange';
-  if (h < 65)  return 'Jaune';
-  if (h < 165) return 'Vert';
-  if (h < 200) return 'Cyan';
-  if (h < 260) return 'Bleu';
-  if (h < 310) return 'Violet';
-  return 'Rose';
+/**
+ * Parse une date FR (JJ/MM/AAAA ou JJ/MM/AA) en chaîne ISO YYYY-MM-DD.
+ * Retourne '' si la date est invalide ou dans le passé lointain.
+ */
+function parseFrenchDate(raw) {
+  const m = String(raw || '').match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (!m) return '';
+  let [, d, mo, y] = m;
+  y = String(y);
+  if (y.length === 2) y = (Number(y) >= 70 ? '19' : '20') + y;
+  const day = Number(d), month = Number(mo), year = Number(y);
+  if (!day || !month || !year || month < 1 || month > 12 || day < 1 || day > 31) return '';
+  // Bornes raisonnables pour une DLC (entre aujourd'hui - 1 an et + 5 ans).
+  const dateObj = new Date(year, month - 1, day);
+  const now = new Date();
+  const minDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+  const maxDate = new Date(now.getFullYear() + 5, now.getMonth(), now.getDate());
+  if (dateObj < minDate || dateObj > maxDate) return '';
+  return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Extrait les champs métier depuis une réponse Cloud Vision.
+ *
+ * Retour : un objet aligné sur le schéma grocery (rayon, format, dlc, etc.).
+ * Pour la rétro-compatibilité avec lib/analyze.js, on expose AUSSI les anciens
+ * noms (taille, fallbackCategorie) en alias en lecture seule — mais le nouveau
+ * code doit consommer format / fallbackRayon.
+ *
+ * @param {ReturnType<typeof visionAnnotate> extends Promise<infer T> ? T : any} v
+ */
 export function extractFromVision(v) {
+  /** @type {{
+   *   marque: string, code_barres: string, format: string, dlc: string,
+   *   detectedPrice: number, fallbackRayon: string, logoConfidence: number,
+   *   taille?: string, fallbackCategorie?: string,
+   * }} */
   const out = {
     marque: '',
     code_barres: '',
-    taille: '',
-    couleur: '',
+    format: '',
+    dlc: '',
     detectedPrice: 0,
-    fallbackCategorie: '',
+    fallbackRayon: '',
     logoConfidence: 0,
   };
   if (!v) return out;
@@ -173,13 +181,16 @@ export function extractFromVision(v) {
   const eanMatch = text.match(EAN_REGEX);
   if (eanMatch) out.code_barres = eanMatch[1];
 
-  const dimMatch = text.match(DIM_REGEX);
-  if (dimMatch) out.taille = dimMatch[0].replace(/\s+/g, ' ').trim();
-  else {
-    const diamMatch = text.match(DIAM_REGEX);
-    if (diamMatch) out.taille = diamMatch[0].replace(/\s+/g, ' ').trim();
+  // Format (poids/volume/unités) — premier pattern qui matche gagne
+  for (const re of FORMAT_REGEX_LIST) {
+    const m = text.match(re);
+    if (m) {
+      out.format = m[0].replace(/\s+/g, ' ').trim();
+      break;
+    }
   }
 
+  // Prix étiquette
   const priceMatch = text.match(PRICE_REGEX);
   if (priceMatch) {
     const raw = (priceMatch[1] || priceMatch[2] || '').replace(',', '.');
@@ -187,14 +198,29 @@ export function extractFromVision(v) {
     if (Number.isFinite(n) && n > 0 && n < 100000) out.detectedPrice = n;
   }
 
-  // Couleur dominante (premier cluster, le plus représentatif)
-  if (v.colors?.length) out.couleur = rgbToFrenchColor(v.colors[0]);
-
-  // Catégorie fallback : meilleur label "physique" (en évitant les abstractions)
-  if (v.labels?.length) {
-    const best = v.labels.find((l) => l.score >= 0.7) || v.labels[0];
-    if (best) out.fallbackCategorie = best.name;
+  // DLC : on essaie d'abord une phrase explicite ("À consommer avant le X")
+  // puis une date isolée en fallback (moins fiable mais utile sur les étiquettes
+  // courtes type pâtes / conserves).
+  const phraseMatch = text.match(DLC_PHRASE_REGEX);
+  if (phraseMatch) out.dlc = parseFrenchDate(phraseMatch[1]);
+  if (!out.dlc) {
+    const fallbackMatch = text.match(DATE_FALLBACK_REGEX);
+    if (fallbackMatch) out.dlc = parseFrenchDate(fallbackMatch[1]);
   }
+
+  // Rayon : on combine les labels + l'OCR + le nom du logo pour deviner le
+  // rayon grocery via guessRayonFromText (lib/rayons.js).
+  const corpus = [
+    text,
+    out.marque,
+    ...(v.labels || []).map((l) => l.name),
+    ...(v.objects || []).map((o) => o.name),
+  ].filter(Boolean).join(' ');
+  out.fallbackRayon = guessRayonFromText(corpus);
+
+  // Aliases pour la rétro-compatibilité de lib/analyze.js (lecture seule).
+  out.taille = out.format;
+  out.fallbackCategorie = out.fallbackRayon;
 
   return out;
 }

@@ -1,23 +1,24 @@
-// Public barcode databases. Free, no API key required (UPCitemDB has a free
-// "trial" tier with ~100 req/day per IP). Used INSTEAD of Gemini for barcode
-// resolution to avoid LLM hallucination on EAN/UPC lookups.
-//
-// Sources, in priority order for general codes:
-//   1. Open Food Facts        — alimentaire (~3M produits)
+// Marche de Mo' — lookup multi-sources pour les codes-barres scannés.
+// On interroge les bases publiques en priorité (gratuit, pas de halluc' LLM) :
+//   1. Open Food Facts        — alimentaire (~3M produits)  ← source #1 pour un supermarche
 //   2. Open Beauty Facts      — cosmétiques
 //   3. Open Products Facts    — objets divers
 //   4. Open Pet Food Facts    — nourriture pour animaux
 //   5. UPCitemDB (free tier)  — catalogue produits US/international
 //
-// Special case for ISBN (codes starting with 978/979):
-//   1. Open Library           — livres (gratuit, illimité)
+// Cas particulier ISBN (codes 978/979) : Open Library en priorité.
 //
-// API docs:
+// Le LLM Gemini/Groq/Mistral n'est appelé qu'en DERNIER RECOURS (cf.
+// lib/analyze.js#tryBarcodeLLMs) pour eviter qu'il invente un produit
+// plausible.
+//
+// Docs API :
 //   - https://wiki.openfoodfacts.org/API
 //   - https://openlibrary.org/dev/docs/api/books
 //   - https://www.upcitemdb.com/api/explorer
+import { guessRayonFromText } from './rayons.js';
 
-const USER_AGENT = 'DecoShopInventaire/1.0 (https://github.com/decoshop)';
+const USER_AGENT = 'MarcheDeMoInventaire/2.0 (https://marchedemo.com)';
 const FETCH_TIMEOUT_MS = 4000;
 const CACHE_TTL_MS = 60 * 60 * 1000;       // 1h: same code looked up again returns instantly
 const NEGATIVE_TTL_MS = 5 * 60 * 1000;     // 5min: don't retry "not found" too aggressively
@@ -96,22 +97,27 @@ async function fetchJson(url, label) {
   }
 }
 
-// ---------- Map Open*Facts categories to MCD categories ----------
-// Most Open*Facts entries are food/cosmetics, which fall into "Autre" for a
-// deco store. We only override when we detect deco-relevant tags.
+// ---------- Map Open*Facts categories → Marche de Mo' rayon slug ----------
+// Le rayon est determine en deux temps :
+//   1. Heuristique fixe pour les rayons "durs" non-grocery (boucherie halal,
+//      surgeles, beaute/animal-only → produits-courants).
+//   2. Fallback sur guessRayonFromText(rayons.js) avec les tags + catégories
+//      qui matche les keywords ethniques (saveurs-afrique, asie, etc.).
 function mapCategoryTags(tags = []) {
   const t = (Array.isArray(tags) ? tags : []).join(' ').toLowerCase();
-  if (/furniture|chair|table|sofa|couch|bed|desk|shelf/.test(t)) return 'Mobilier';
-  if (/lamp|light|lighting|chandelier|lantern/.test(t)) return 'Luminaire';
-  if (/textile|cushion|pillow|blanket|curtain|rug|carpet/.test(t)) return 'Textile';
-  if (/wall-decoration|painting|frame|poster|mirror/.test(t)) return 'Décoration murale';
-  if (/tableware|dish|plate|cutlery|glassware|mug|cup/.test(t)) return 'Vaisselle';
-  if (/appliance|kitchen-appliance|small-appliance/.test(t)) return 'Électroménager';
-  if (/garden|outdoor|plant|flower-pot/.test(t)) return 'Jardin';
-  if (/storage|box|basket|container/.test(t)) return 'Rangement';
-  if (/toy|game|plaything/.test(t)) return 'Jouet';
-  if (/electronic|electronics|gadget/.test(t)) return 'Électronique';
-  return '';
+
+  // Heuristiques explicites (priorité 1)
+  if (/halal|hallal/.test(t) && /viande|meat|poulet|boeuf|agneau|lamb|chicken|beef/.test(t)) {
+    return 'boucherie-halal';
+  }
+  if (/frozen|surgel/.test(t)) return 'surgeles';
+  if (/fresh.?fruit|fresh.?vegetable|fruits-frais|legumes-frais|produce/.test(t)) {
+    return 'fruits-legumes';
+  }
+  if (/spice|seasoning|epice|herb/.test(t)) return 'epices-du-monde';
+
+  // Fallback : on passe la chaîne complète à guessRayonFromText (lib/rayons.js).
+  return guessRayonFromText(t);
 }
 
 // ---------- Description builder for Open*Facts products ----------
@@ -160,24 +166,32 @@ function buildOpenFactsDescription(p) {
   return parts.join(' — ');
 }
 
-// ---------- Map Open*Facts product to MCD article shape ----------
+// ---------- Map Open*Facts product → article shape (grocery) ----------
 function mapProduct(p, code, source) {
-  const name        = (p.product_name_fr || p.product_name || '').trim();
-  const brand       = (p.brands || '').split(',')[0]?.trim() || '';
-  const sizeRaw     = (p.quantity || '').trim();
-  // Drop "0kg" / "0g" / "0" garbage from the size field as well
-  const size        = /^0+\s*[a-z]*$/i.test(sizeRaw) ? '' : sizeRaw;
-  const image       = (p.image_front_url || p.image_url || '').trim();
-  const categorie   = mapCategoryTags(p.categories_tags) || 'Autre';
+  const name      = (p.product_name_fr || p.product_name || '').trim();
+  const brand     = (p.brands || '').split(',')[0]?.trim() || '';
+  const sizeRaw   = (p.quantity || '').trim();
+  const format    = /^0+\s*[a-z]*$/i.test(sizeRaw) ? '' : sizeRaw;
+  const image     = (p.image_front_url || p.image_url || '').trim();
   const description = buildOpenFactsDescription(p);
+
+  // On combine les tags + categories + nom + description pour deviner le
+  // rayon grocery. Beaucoup d'entrées OFF ont des tags ethniques (saveurs-
+  // afrique, balkan, ...) qu'on veut capter.
+  const corpus = [
+    ...(p.categories_tags || []),
+    p.categories_fr, p.categories,
+    name, description,
+  ].filter(Boolean).join(' ');
+  const rayon = mapCategoryTags(p.categories_tags) || guessRayonFromText(corpus);
 
   return {
     code_barres: code,
+    nom_produit: name,
     description,
     marque: brand,
-    couleur: '',
-    categorie,
-    taille: size,
+    rayon,
+    format,
     photo_url: image,
     prix_vente: 0,
     _source: source,
@@ -238,11 +252,11 @@ async function lookupOpenLibrary(code) {
   return {
     product: {
       code_barres: code,
+      nom_produit: book.title,
       description: parts.join(' — '),
       marque: publisher,
-      couleur: '',
-      categorie: 'Autre',
-      taille: pages,
+      rayon: 'produits-courants', // les livres ne sont pas un rayon Marche de Mo', on retombe sur courants
+      format: pages,
       photo_url: cover,
       prix_vente: 0,
       _source: 'openlibrary',
@@ -266,35 +280,28 @@ async function lookupUpcItemDb(code) {
   if (item.weight)    parts.push(`Poids : ${item.weight}`);
   if (item.category)  parts.push(`Catégorie : ${item.category}`);
 
+  // UPCitemDB est centré US/non-alimentaire — on essaie de matcher un rayon
+  // grocery via mapCategoryTags + guess sur title/description, sinon on
+  // retombe sur 'produits-courants' (le rayon le plus large).
+  const corpus = [item.category, item.title, item.description].filter(Boolean).join(' ');
+  const rayon = mapCategoryTags([item.category])
+    || guessRayonFromText(corpus)
+    || 'produits-courants';
+
   return {
     product: {
       code_barres: code,
+      nom_produit: item.title || '',
       description: parts.join(' — '),
       marque: (item.brand || '').trim(),
-      couleur: (item.color || '').trim(),
-      categorie: mapUpcItemDbCategory(item.category) || 'Autre',
-      taille: (item.size || item.dimension || '').trim(),
+      rayon,
+      format: (item.size || item.dimension || item.weight || '').trim(),
       photo_url: (item.images || [])[0] || '',
       prix_vente: Number(item.lowest_recorded_price) || 0,
       _source: 'upcitemdb',
     },
     rateLimited: false,
   };
-}
-
-function mapUpcItemDbCategory(cat = '') {
-  const t = String(cat || '').toLowerCase();
-  if (/furniture|chair|table|sofa|bed|desk/.test(t)) return 'Mobilier';
-  if (/lamp|light/.test(t)) return 'Luminaire';
-  if (/textile|cushion|pillow|bedding|towel|curtain|rug/.test(t)) return 'Textile';
-  if (/wall|painting|frame|poster|mirror/.test(t)) return 'Décoration murale';
-  if (/dish|tableware|kitchen|plate|cookware|cup/.test(t)) return 'Vaisselle';
-  if (/appliance/.test(t)) return 'Électroménager';
-  if (/garden|outdoor|patio/.test(t)) return 'Jardin';
-  if (/storage|organizer|bin|basket/.test(t)) return 'Rangement';
-  if (/toy|game/.test(t)) return 'Jouet';
-  if (/electronic|phone|computer|gadget|camera/.test(t)) return 'Électronique';
-  return '';
 }
 
 // ---------- Main entry point ----------

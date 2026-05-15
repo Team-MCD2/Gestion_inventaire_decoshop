@@ -1,7 +1,13 @@
 ---
 // Sticky top navigation, shared by every page.
 // Highlights the active link based on the current pathname.
+import { Image } from "astro:assets";
+import logoImg from "../assets/logo-marchedemo.png";
+
 const path = Astro.url.pathname.replace(/\/+$/, '') || '/';
+
+const BRAND_NAME    = (import.meta.env.PUBLIC_BRAND_NAME    ?? "Marché de Mo'").toString();
+const BRAND_TAGLINE = (import.meta.env.PUBLIC_BRAND_TAGLINE ?? "Inventaire intelligent").toString();
 
 const links = [
   { href: '/',              label: 'Accueil',       icon: 'home' },
@@ -17,15 +23,19 @@ function isActive(href: string) {
   return path === href || path.startsWith(href + '/');
 }
 ---
-<header class="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-slate-200">
+<header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200">
   <div class="max-w-7xl mx-auto flex items-center gap-3 p-3 md:p-4">
-    <a href="/" class="flex items-center gap-2 min-w-0 mr-2 md:mr-4">
-      <div class="relative h-9 w-9 md:h-10 md:w-10 shrink-0 rounded-full overflow-hidden ring-2 ring-white shadow-md">
-        <img src="/favicon.svg" alt="DECO SHOP" class="h-full w-full" />
-      </div>
-      <div class="min-w-0 hidden sm:block">
-        <h1 class="text-sm md:text-base font-extrabold text-slate-900 tracking-tight truncate">DECO SHOP</h1>
-        <p class="hidden md:block text-[11px] text-slate-500 -mt-0.5">Inventaire intelligent</p>
+    <a href="/" class="flex items-center gap-2.5 min-w-0 mr-2 md:mr-4" aria-label={`${BRAND_NAME} — Accueil inventaire`}>
+      <Image
+        src={logoImg}
+        alt={BRAND_NAME}
+        width={40}
+        height={40}
+        class="h-9 w-9 md:h-10 md:w-10 shrink-0 object-contain"
+      />
+      <div class="min-w-0 hidden sm:block leading-tight">
+        <h1 class="font-display text-sm md:text-base font-bold text-vert tracking-tight truncate">{BRAND_NAME}</h1>
+        <p class="hidden md:block text-[11px] text-slate-500 -mt-0.5">{BRAND_TAGLINE}</p>
       </div>
     </a>
 
@@ -36,7 +46,7 @@ function isActive(href: string) {
           class:list={[
             'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold whitespace-nowrap transition',
             isActive(l.href)
-              ? 'bg-indigo-600 text-white shadow-sm'
+              ? 'bg-vert text-white shadow-sm'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
           ]}
         >

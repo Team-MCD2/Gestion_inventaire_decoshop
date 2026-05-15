@@ -43,16 +43,17 @@ export function getKeyCount() {
   return readApiKeys().length;
 }
 
-// Aligned on the MCD article schema (cf. mcd_mld.md §2)
+// Aligned on the article schema (cf. supabase/schema.sql §1 + llm-vision-prompt.js).
+// Format propriétaire Gemini : type en MAJUSCULES (vs lowercase pour OpenAI).
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    categorie:    { type: 'STRING' },
+    rayon:        { type: 'STRING' },
+    nom_produit:  { type: 'STRING' },
     marque:       { type: 'STRING' },
-    couleur:      { type: 'STRING' },
-    description:  { type: 'STRING' },
+    format:       { type: 'STRING' },
     code_barres:  { type: 'STRING' },
-    taille:       { type: 'STRING' },
+    description:  { type: 'STRING' },
     prix_vente:   { type: 'NUMBER' },
   },
 };

@@ -1,13 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
 ---
-<Layout title="Générer des codes-barres — DECO SHOP">
+<Layout title="Générer des codes-barres — Marché de Mo'">
   <main class="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
 
     <!-- Page header -->
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <div class="text-xs font-semibold text-fuchsia-600 uppercase tracking-wider">Inventaire</div>
+        <div class="text-xs font-semibold text-vert uppercase tracking-wider">Inventaire</div>
         <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Générer des codes-barres</h1>
         <p class="text-sm text-slate-600 mt-1">Codes EAN-13 conformes au standard <strong>GS1 France</strong> (préfixe 300-379) avec checksum valide.</p>
       </div>
@@ -26,11 +26,11 @@ import Layout from '../layouts/Layout.astro';
       </div>
       <div class="bg-white rounded-2xl ring-1 ring-slate-200 p-4 md:p-5">
         <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Avec code-barres</div>
-        <div id="kpi-with" class="mt-1 text-2xl md:text-3xl font-extrabold text-emerald-600 tabular-nums">—</div>
+        <div id="kpi-with" class="mt-1 text-2xl md:text-3xl font-extrabold text-vert tabular-nums">—</div>
       </div>
       <div class="bg-white rounded-2xl ring-1 ring-slate-200 p-4 md:p-5">
         <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Sans code-barres</div>
-        <div id="kpi-without" class="mt-1 text-2xl md:text-3xl font-extrabold text-fuchsia-600 tabular-nums">—</div>
+        <div id="kpi-without" class="mt-1 text-2xl md:text-3xl font-extrabold text-red-600 tabular-nums">—</div>
       </div>
     </section>
 
@@ -42,7 +42,7 @@ import Layout from '../layouts/Layout.astro';
           <p id="missing-summary" class="text-sm text-slate-500 mt-0.5">Chargement…</p>
         </div>
         <div class="flex items-center gap-3">
-          <select id="filter-status" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 focus:outline-none">
+          <select id="filter-status" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-vert focus:ring-2 focus:ring-vert/20 focus:outline-none">
             <option value="missing">Sans code-barres</option>
             <option value="with">Avec code-barres</option>
             <option value="all">Tous les articles</option>
@@ -60,12 +60,12 @@ import Layout from '../layouts/Layout.astro';
             <span id="btn-download-images-label">Télécharger Images</span>
           </button>
           <button id="btn-export-selected" type="button" disabled
-            class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed">
+            class="inline-flex items-center gap-1.5 rounded-lg bg-vert px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vert-800 disabled:bg-slate-300 disabled:cursor-not-allowed">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             Exporter PDF
           </button>
           <button id="btn-generate" type="button" disabled
-            class="inline-flex items-center gap-2 rounded-lg bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-fuchsia-700 disabled:bg-slate-300 disabled:cursor-not-allowed">
+            class="inline-flex items-center gap-2 rounded-lg bg-vert px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-vert-800 disabled:bg-slate-300 disabled:cursor-not-allowed">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M7 5v14"/><path d="M11 5v14"/><path d="M15 5v14"/><path d="M19 5v14"/></svg>
             Générer
           </button>
@@ -78,7 +78,7 @@ import Layout from '../layouts/Layout.astro';
     <!-- Overlay de progression : génération en cours -->
     <div id="gen-overlay" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div class="bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200 max-w-md w-full p-6 md:p-8">
-        <div class="h-12 w-12 mx-auto mb-3 rounded-full border-4 border-fuchsia-100 border-t-fuchsia-600 animate-spin"></div>
+        <div class="h-12 w-12 mx-auto mb-3 rounded-full border-4 border-vert-100 border-t-vert animate-spin"></div>
         <h3 class="text-center text-base font-bold text-slate-900">Génération en cours…</h3>
         <p id="gen-current" class="mt-1 text-center text-xs text-slate-500 font-mono truncate">&nbsp;</p>
 
@@ -89,7 +89,7 @@ import Layout from '../layouts/Layout.astro';
             <span id="gen-pct" class="tabular-nums">0 %</span>
           </div>
           <div class="h-3 rounded-full bg-slate-100 ring-1 ring-slate-200 overflow-hidden">
-            <div id="gen-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-rose-500 transition-[width] duration-300 ease-out"></div>
+            <div id="gen-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-vert to-emerald-500 transition-[width] duration-300 ease-out"></div>
           </div>
         </div>
 
@@ -100,7 +100,7 @@ import Layout from '../layouts/Layout.astro';
     <!-- Overlay PDF -->
     <div id="pdf-overlay" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div class="bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200 max-w-sm w-full p-6 md:p-8 text-center">
-        <div class="h-12 w-12 mx-auto mb-3 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin"></div>
+        <div class="h-12 w-12 mx-auto mb-3 rounded-full border-4 border-vert-100 border-t-vert animate-spin"></div>
         <h3 class="text-base font-bold text-slate-900">Génération du PDF…</h3>
         <p class="mt-1 text-xs text-slate-500">Encodage des étiquettes en cours.</p>
       </div>
@@ -139,7 +139,7 @@ import Layout from '../layouts/Layout.astro';
         <button id="postgen-close" type="button" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
-        <div class="mx-auto h-14 w-14 rounded-2xl bg-fuchsia-50 ring-1 ring-fuchsia-200 flex items-center justify-center text-fuchsia-600 mb-4">
+        <div class="mx-auto h-14 w-14 rounded-2xl bg-vert-50 ring-1 ring-vert-200 flex items-center justify-center text-vert mb-4">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M7 5v14"/><path d="M11 5v14"/><path d="M15 5v14"/><path d="M19 5v14"/></svg>
         </div>
         <h3 class="text-lg font-bold text-slate-900 mb-1">Codes-barres générés !</h3>
@@ -148,12 +148,12 @@ import Layout from '../layouts/Layout.astro';
         </p>
         <div class="flex flex-col gap-2">
           <button id="postgen-btn-view" type="button"
-            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-fuchsia-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-fuchsia-700">
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-vert px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-vert-800">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
             Visualiser les étiquettes
           </button>
           <button id="postgen-btn-print" type="button"
-            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
             Imprimer maintenant
           </button>
@@ -186,9 +186,9 @@ import Layout from '../layouts/Layout.astro';
               </th>
               <th class="px-3 py-2 text-left font-semibold">N° article (série)</th>
               <th class="px-3 py-2 text-left font-semibold">Photo</th>
-              <th class="px-3 py-2 text-left font-semibold">Description</th>
+              <th class="px-3 py-2 text-left font-semibold">Nom produit</th>
               <th class="px-3 py-2 text-left font-semibold">Marque</th>
-              <th class="px-3 py-2 text-left font-semibold">Catégorie</th>
+              <th class="px-3 py-2 text-left font-semibold">Rayon</th>
               <th class="px-3 py-2 text-left font-semibold">Code-barres</th>
               <th class="px-3 py-2 text-right font-semibold">Qté</th>
               <th class="px-3 py-2 text-center font-semibold">Actions</th>
@@ -198,7 +198,7 @@ import Layout from '../layouts/Layout.astro';
         </table>
         
         <div id="missing-loading" class="hidden py-16 px-6 text-center text-slate-400">
-          <div class="h-10 w-10 mx-auto mb-3 rounded-full border-4 border-slate-200 border-t-fuchsia-500 animate-spin"></div>
+          <div class="h-10 w-10 mx-auto mb-3 rounded-full border-4 border-slate-200 border-t-vert animate-spin"></div>
           <p class="text-sm font-medium">Recherche des articles sans code-barres…</p>
         </div>
       </div>
@@ -213,7 +213,7 @@ import Layout from '../layouts/Layout.astro';
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <button id="btn-print" type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+            class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
             Imprimer
           </button>
@@ -269,14 +269,14 @@ import Layout from '../layouts/Layout.astro';
       box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
     .barcode-action-btn.view-btn:hover {
-      background: #ede9fe;
-      color: #7c3aed;
-      border-color: #c4b5fd;
+      background: #ecfdf5;
+      color: #166534;
+      border-color: #bbf7d0;
     }
     .barcode-action-btn.download-btn:hover {
-      background: #ecfdf5;
-      color: #059669;
-      border-color: #6ee7b7;
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fecaca;
     }
 
     /* Modal animation */

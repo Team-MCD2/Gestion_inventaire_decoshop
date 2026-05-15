@@ -91,10 +91,10 @@ unlockAudioOnce();
 // Field config (MCD schema, cf. mcd_mld.md §2)
 // ─────────────────────────────────────────────────────────────────────────────
 const TEXT_FIELDS = [
-  'numero_article', 'nom_produit', 'categorie', 'marque', 'couleur', 'description',
-  'code_barres', 'taille',
+  'numero_article', 'nom_produit', 'rayon', 'marque', 'dlc', 'description',
+  'code_barres', 'format', 'magasin'
 ];
-const NUMBER_FIELDS = ['prix_vente', 'quantite_initiale', 'quantite'];
+const NUMBER_FIELDS = ['prix_vente', 'quantite_initiale', 'quantite', 'seuil'];
 const FIELDS = [...TEXT_FIELDS, ...NUMBER_FIELDS];
 
 const FORMS = {
@@ -172,7 +172,8 @@ function updateStatutPreview(mode = 'create') {
     return;
   }
   const q = Number(qRaw);
-  const seuil = 5;
+  const seuilRaw = form.elements.namedItem('seuil')?.value;
+  const seuil = seuilRaw ? Number(seuilRaw) : 5;
   const s = q <= 0 ? 'rupture' : (q <= seuil ? 'stock_faible' : 'en_stock');
   target.innerHTML = renderStatusBadge(s);
 }
@@ -494,17 +495,19 @@ window.__decoshop.openScanner = openScanner;
 // ─────────────────────────────────────────────────────────────────────────────
 // Inventory table (used by /inventaire only)
 // ─────────────────────────────────────────────────────────────────────────────
-let tableFilter = { search: '', status: '' };
+let tableFilter = { search: '', status: '', rayon: '', magasin: '' };
 
 function filteredArticles() {
   const { articles } = getState();
-  const { search, status } = tableFilter;
+  const { search, status, rayon, magasin } = tableFilter;
   let list = articles;
   if (status) list = list.filter((a) => a.statut === status);
+  if (rayon)  list = list.filter((a) => a.rayon === rayon);
+  if (magasin) list = list.filter((a) => a.magasin === magasin);
   if (search) {
     const q = search.toLowerCase();
     list = list.filter((a) =>
-      [a.numero_article, a.nom_produit, a.code_barres, a.marque, a.couleur, a.description, a.categorie, a.taille]
+      [a.numero_article, a.nom_produit, a.code_barres, a.marque, a.dlc, a.description, a.rayon, a.format, a.magasin]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q))
     );
@@ -543,30 +546,31 @@ function renderTable() {
 
   tbody.innerHTML = list.map((a) => `
     <tr class="hover:bg-slate-50 transition cursor-pointer group" data-action="row-edit" data-id="${a.id}">
-      <td class="px-3 py-2 whitespace-nowrap font-mono text-xs font-semibold text-slate-400 group-hover:text-indigo-600 transition">${escapeHtml(a.numero_article || '')}</td>
+      <td class="px-3 py-2 whitespace-nowrap font-mono text-xs font-semibold text-slate-400 group-hover:text-vert transition">${escapeHtml(a.numero_article || '')}</td>
       <td class="px-3 py-2">${a.photo_url
         ? `<img src="${a.photo_url}" class="h-12 w-12 object-cover rounded-md ring-1 ring-slate-200" alt="" />`
         : '<span class="inline-flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-slate-300 text-xs">—</span>'}</td>
       <td class="px-3 py-2 max-w-[140px]"><div class="font-bold text-slate-900 text-sm truncate">${escapeHtml(a.nom_produit || '—')}</div></td>
-      <td class="px-3 py-2"><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(a.categorie || '—')}</span></td>
+      <td class="px-3 py-2"><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">${escapeHtml(a.rayon || '—')}</span></td>
       <td class="px-3 py-2 font-medium text-slate-700">${escapeHtml(a.marque || '')}</td>
-      <td class="px-3 py-2 text-slate-600">${escapeHtml(a.couleur || '')}</td>
+      <td class="px-3 py-2 text-slate-600">${escapeHtml(a.dlc || '')}</td>
+      <td class="px-3 py-2 text-slate-600">${escapeHtml(a.format || '')}</td>
+      <td class="px-3 py-2 text-slate-500 italic text-xs">${escapeHtml(a.magasin || '')}</td>
       <td class="px-3 py-2 max-w-xs"><div class="line-clamp-2 text-xs text-slate-500">${escapeHtml(a.description || '')}</div></td>
       <td class="px-3 py-2 text-right tabular-nums font-bold text-slate-900">${fmtPrice(a.prix_vente)}</td>
       <td class="px-3 py-2 font-mono text-xs group relative">
         <div class="flex items-center gap-2">
           <span class="inline-barcode-val" data-id="${a.id}">${escapeHtml(a.code_barres || '—')}</span>
-          <button data-action="inline-edit-barcode" data-id="${a.id}" class="hidden md:inline-flex opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600 shrink-0 print:hidden" title="Éditer le code-barres rapidement">
+          <button data-action="inline-edit-barcode" data-id="${a.id}" class="hidden md:inline-flex opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-vert-600 shrink-0 print:hidden" title="Éditer le code-barres rapidement">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
         </div>
       </td>
-      <td class="px-3 py-2 whitespace-nowrap text-xs text-slate-500">${escapeHtml(a.taille || '')}</td>
       <td class="px-3 py-2 text-right tabular-nums text-slate-400">${a.quantite_initiale ?? ''}</td>
-      <td class="px-3 py-2 text-right tabular-nums font-bold ${a.quantite <= 0 ? 'text-red-600' : 'text-slate-900'}">${a.quantite ?? ''}</td>
+      <td class="px-3 py-2 text-right tabular-nums font-bold ${a.quantite <= (a.seuil || 0) ? 'text-red-600' : 'text-slate-900'}">${a.quantite ?? ''}</td>
       <td class="px-3 py-2 whitespace-nowrap">${renderStatusBadge(a.statut)}</td>
       <td class="px-3 py-2 text-right whitespace-nowrap print:hidden">
-        <button data-action="edit" data-id="${a.id}" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold mr-2">Éditer</button>
+        <button data-action="edit" data-id="${a.id}" class="text-vert hover:text-vert-800 text-xs font-semibold mr-2">Éditer</button>
         <button data-action="delete" data-id="${a.id}" class="text-red-600 hover:text-red-800 text-xs font-semibold">Suppr.</button>
       </td>
     </tr>
@@ -651,7 +655,7 @@ function wireCreateForm() {
 
   $('#btn-clear')?.addEventListener('click', async () => {
     const d = getFormData('create');
-    const dirty = d.marque || d.couleur || d.description || d.photo_url;
+    const dirty = d.marque || d.dlc || d.description || d.photo_url;
     if (dirty && !confirm('Effacer le formulaire ?')) return;
     await clearForm();
   });
@@ -734,6 +738,14 @@ function wireInventoryTable() {
     tableFilter.search = String(e.target.value || '').trim();
     renderTable();
   });
+  $('#inventory-filter-rayon')?.addEventListener('change', (e) => {
+    tableFilter.rayon = String(e.target.value || '');
+    renderTable();
+  });
+  $('#inventory-filter-magasin')?.addEventListener('change', (e) => {
+    tableFilter.magasin = String(e.target.value || '');
+    renderTable();
+  });
   $('#inventory-filter-status')?.addEventListener('change', (e) => {
     tableFilter.status = String(e.target.value || '');
     renderTable();
@@ -748,7 +760,7 @@ function wireInventoryTable() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `backup_decoshop_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `backup_marchedemo_${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
@@ -1081,7 +1093,11 @@ function parseCSV(text) {
     'nom': 'nom_produit', 'produit': 'nom_produit', 'nomproduit': 'nom_produit',
     'prix': 'prix_vente', 'tarif': 'prix_vente', 'prixvente': 'prix_vente',
     'stock': 'quantite', 'quantite': 'quantite', 'qty': 'quantite',
-    'seuil': 'seuil_stock_faible',
+    'seuil': 'seuil', 'alerte': 'seuil',
+    'rayon': 'rayon', 'categorie': 'rayon', 'catégorie': 'rayon',
+    'format': 'format', 'poids': 'format', 'taille': 'format',
+    'dlc': 'dlc', 'expiration': 'dlc', 'date': 'dlc',
+    'magasin': 'magasin', 'lieu': 'magasin', 'boutique': 'magasin',
     'barcode': 'code_barres', 'code': 'code_barres', 'ean': 'code_barres', 'codebarres': 'code_barres'
   };
 

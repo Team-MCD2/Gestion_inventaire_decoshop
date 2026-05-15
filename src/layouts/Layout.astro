@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import Navbar from "../components/Navbar.astro";
+import logoImg from "../assets/logo-marchedemo.png";
 
 interface Props {
   title?: string;
@@ -8,9 +9,12 @@ interface Props {
   showNav?: boolean;
 }
 
+const BRAND_NAME    = (import.meta.env.PUBLIC_BRAND_NAME    ?? "Marché de Mo'").toString();
+const BRAND_TAGLINE = (import.meta.env.PUBLIC_BRAND_TAGLINE ?? "Inventaire intelligent").toString();
+
 const {
-  title = "DECO SHOP — Inventaire intelligent",
-  description = "Inventaire intelligent avec caméra, analyse IA et scan code-barres.",
+  title = `${BRAND_NAME} — ${BRAND_TAGLINE}`,
+  description = `Outil d'inventaire ${BRAND_NAME} : caméra, analyse IA et scan code-barres pour les équipes en magasin.`,
   showNav = true,
 } = Astro.props;
 
@@ -25,16 +29,19 @@ const authExpiresAt = Astro.locals.authExpiresAt;
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#1e3a8a" />
+    <meta name="theme-color" content="#1C6B35" />
     {authExpiresAt && <meta name="dsh-session-expires-at" content={String(authExpiresAt)} />}
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href={logoImg.src} />
+
+    <!-- Typekit : Filson Pro + Filson Soft (même kit que le site public) -->
+    <link rel="preconnect" href="https://use.typekit.net" crossorigin />
+    <link rel="preconnect" href="https://p.typekit.net" crossorigin />
+    <link rel="stylesheet" href="https://use.typekit.net/tci0qgy.css" />
+
     <title>{title}</title>
   </head>
-  <body class="antialiased bg-slate-50">
+  <body class="antialiased bg-white text-slate-900">
     {showNav && <Navbar />}
     <slot />
     <!-- Toast host (shared by every page) -->

@@ -1,87 +1,126 @@
-// Shared prompt + JSON schema for image analysis. Used by every LLM provider
-// (Gemini, Groq Llama Vision, Mistral Pixtral) so they all return the SAME
-// structure and can be swapped transparently in the fallback chain.
+// Marché de Mo' — Prompt + JSON schema partagés pour l'analyse d'image.
+// Utilisé par TOUS les providers LLM vision (Gemini, Groq Llama Vision,
+// Mistral Pixtral) pour qu'ils renvoient la MÊME structure et soient
+// interchangeables dans la chaîne de fallback.
+//
+// Aligné sur le MCD article grocery (cf. supabase/schema.sql §1).
 
-// Categories list — must stay aligned with the MCD article schema.
-export const CATEGORIES = [
-  'Mobilier', 'Luminaire', 'Textile', 'Décoration murale',
-  'Vaisselle', 'Électroménager', 'Jardin', 'Rangement',
-  'Jouet', 'Électronique', 'Autre',
-];
+import { RAYON_SLUGS, RAYONS } from './rayons.js';
 
-// Strict prompt used as a LAST-RESORT fallback when public barcode databases
-// (Open Food Facts & co.) don't know the code. The wording explicitly tells
-// the LLM NOT to guess if it doesn't recognize the code — better to return
-// empty fields than to hallucinate a plausible product.
+// Liste des slugs autorisés en sortie LLM — partagée avec le schéma JSON.
+// On donne aussi le libellé humain au LLM pour qu'il choisisse en
+// connaissance de cause.
+const RAYONS_FOR_PROMPT = RAYONS.map((r) => `${r.slug} (${r.label})`).join(', ');
+
+/**
+ * Prompt code-barres (fallback de dernière chance après Open Food Facts &
+ * consorts). Wording strict : le LLM ne devine PAS s'il n'est pas certain —
+ * mieux vaut renvoyer des champs vides qu'un produit halluciné.
+ *
+ * @param {string} code
+ * @returns {string}
+ */
 export function buildBarcodePrompt(code) {
-  return `Tu es un expert produit avec une connaissance des codes EAN/UPC/GTIN.
-On a scanné le code-barres: "${code}".
+  return `Tu es un expert produit pour un supermarché épicerie du monde,
+avec une connaissance des codes EAN/UPC/GTIN alimentaires et non-alimentaires.
+On a scanné le code-barres : "${code}".
 
-RÈGLES CRITIQUES:
-- Si tu ne reconnais pas ce code-barres avec une CERTITUDE forte, renvoie des CHAÎNES VIDES et 0 pour les nombres.
-- Ne devine JAMAIS un produit qui te semble "plausible" — la précision compte plus que la complétude.
+RÈGLES CRITIQUES :
+- Si tu ne reconnais pas ce code-barres avec une CERTITUDE forte, renvoie des
+  CHAÎNES VIDES et 0 pour les nombres.
+- Ne devine JAMAIS un produit qui te semble "plausible" — la précision compte
+  plus que la complétude.
 - Conserve TOUJOURS code_barres = "${code}" tel quel.
 
-Si tu reconnais avec certitude, renvoie un JSON conforme:
-- categorie: parmi (${CATEGORIES.join(', ')})
-- marque, couleur, description (français, concis)
-- taille (ex: "90x190" pour literie, "L120 x H75 cm" pour mobilier, "" si inconnu)
-- prix_vente: prix de vente public estimé EUR (0 si inconnu)
+Si tu reconnais avec certitude, renvoie un JSON conforme :
+- rayon : choisir parmi ces slugs uniquement (${RAYON_SLUGS.join(', ')})
+- nom_produit : nom commercial court (ex: "Banane plantain mûre", "Lait UHT demi-écrémé")
+- marque : marque commerciale ou "" si générique / sans marque
+- format : format/poids/contenance (ex: "500g", "1L", "12 unités", "200ml")
+- description : description courte en français (1 phrase factuelle)
+- prix_vente : prix de vente public estimé EUR (0 si inconnu)
 
 Réponds uniquement en JSON conforme au schéma, sans commentaire ni markdown.`;
 }
 
-// Human-readable French prompt — same for every provider.
-export const IMAGE_PROMPT = `Tu es un expert en inventaire pour un magasin de décoration (DECO SHOP).
-Analyse la photo fournie et renvoie un JSON strict conforme au schéma:
-- categorie: parmi (${CATEGORIES.join(', ')})
-- marque: nom de la marque visible ou reconnaissable ("" si inconnue)
-- couleur: nom de la couleur principale en français (ex: "Bleu nuit", "Bordeaux", "Bois clair", "" si non identifiable)
-- description: description courte et précise en français (1 à 2 phrases : matériaux, style, usage)
-- code_barres: code-barres EAN/UPC/GTIN visible sur l'étiquette (uniquement chiffres, "" si absent)
-- taille: dimensions ou taille (ex: "L120 x l60 x H75 cm", "Ø30 cm", ou pour la literie "90x190", "140x190"), "" si inconnu
-- prix_vente: prix de vente public conseillé estimé en EUR (nombre ; 0 si inconnu)
+/**
+ * Prompt image (analyse photo / vidéo) — appelé quand un employé filme un
+ * article ou importe une photo depuis sa galerie. On demande au LLM d'extraire
+ * un maximum d'infos lisibles sur l'emballage.
+ */
+export const IMAGE_PROMPT = `Tu es un expert en inventaire pour un supermarché épicerie du monde
+(Marché de Mo'). Le supermarché vend des produits du monde entier : Afrique,
+Asie, Méditerranée, Amérique Latine, Balkans, Turquie, boucherie halal,
+fruits & légumes, surgelés et épicerie courante.
+
+Analyse la photo fournie et renvoie un JSON strict conforme au schéma :
+
+- rayon : choisis le slug le plus pertinent parmi cette liste fermée :
+    ${RAYONS_FOR_PROMPT}
+- nom_produit : nom commercial court et précis (ex: "Banane plantain mûre",
+  "Lait de coco Aroy-D", "Couscous moyen Tipiaco"), "" si illisible
+- marque : nom de la marque visible ou reconnaissable ("" si générique /
+  produit en vrac / marque distributeur sans nom propre)
+- format : poids / volume / nombre d'unités visible sur l'étiquette
+  (ex: "500g", "1L", "12 unités", "200ml", "5kg"), "" si pas visible
+- code_barres : code-barres EAN/UPC/GTIN visible sur l'étiquette
+  (uniquement chiffres, "" si absent / illisible)
+- description : description courte en français (1 phrase factuelle :
+  origine du produit, particularité, label bio/halal/sans gluten si mentionné)
+- prix_vente : prix de vente public estimé en EUR (nombre ; 0 si inconnu)
 
 Réponds STRICTEMENT en JSON conforme au schéma, sans commentaire ni markdown.`;
 
-// JSON Schema in OpenAI-compatible format (used by Groq + Mistral).
+// JSON Schema au format OpenAI-compatible (utilisé par Groq + Mistral).
 export const RESPONSE_JSON_SCHEMA = {
   type: 'object',
   properties: {
-    categorie:    { type: 'string' },
+    rayon:        { type: 'string' },
+    nom_produit:  { type: 'string' },
     marque:       { type: 'string' },
-    couleur:      { type: 'string' },
-    description:  { type: 'string' },
+    format:       { type: 'string' },
     code_barres:  { type: 'string' },
-    taille:       { type: 'string' },
+    description:  { type: 'string' },
     prix_vente:   { type: 'number' },
   },
   required: [
-    'categorie','marque','couleur','description','code_barres','taille','prix_vente',
+    'rayon', 'nom_produit', 'marque', 'format', 'code_barres', 'description', 'prix_vente',
   ],
   additionalProperties: false,
 };
 
-// Empty result with all fields, used as a safe default when an LLM omits fields.
+// Résultat vide avec tous les champs, utilisé comme valeur par défaut quand un
+// LLM omet des champs.
 export function emptyArticleResult() {
   return {
-    categorie: '', marque: '', couleur: '', description: '',
-    code_barres: '', taille: '',
+    rayon: '',
+    nom_produit: '',
+    marque: '',
+    format: '',
+    code_barres: '',
+    description: '',
     prix_vente: 0,
   };
 }
 
-// Normalize an LLM response: ensure every required field exists and prices are numbers.
+/**
+ * Normalise une réponse LLM : s'assure que chaque champ requis existe, que
+ * les prix sont des nombres et que le rayon est dans la liste autorisée
+ * (sinon on le vide pour éviter de polluer la DB avec des slugs inventés).
+ *
+ * @param {any} raw
+ */
 export function normalizeArticleResult(raw) {
   const def = emptyArticleResult();
   const r = raw && typeof raw === 'object' ? raw : {};
+  const rayon = String(r.rayon ?? def.rayon).trim();
   return {
-    categorie:    String(r.categorie    ?? def.categorie),
+    rayon:        RAYON_SLUGS.includes(rayon) ? rayon : '',
+    nom_produit:  String(r.nom_produit  ?? def.nom_produit),
     marque:       String(r.marque       ?? def.marque),
-    couleur:      String(r.couleur      ?? def.couleur),
-    description:  String(r.description  ?? def.description),
+    format:       String(r.format       ?? def.format),
     code_barres:  String(r.code_barres  ?? def.code_barres),
-    taille:       String(r.taille       ?? def.taille),
+    description:  String(r.description  ?? def.description),
     prix_vente:   Number(r.prix_vente)  || 0,
   };
 }

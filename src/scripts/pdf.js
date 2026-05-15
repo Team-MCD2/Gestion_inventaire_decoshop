@@ -3,8 +3,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const HEADERS = [
-  'N°', 'Cat.', 'Marque', 'Couleur', 'Code-barres',
-  'Taille', 'P. vente', 'Qté init', 'Qté', 'Statut',
+  'N°', 'Rayon', 'Marque', 'DLC', 'Code-barres',
+  'Format', 'Magasin', 'P. vente', 'Qté', 'Statut',
 ];
 
 const STATUT_LABELS = {
@@ -25,16 +25,15 @@ export function downloadPDF(articles) {
   const ts = now.toLocaleString('fr-FR');
 
   // Title bar
-  doc.setFillColor(30, 58, 138); // brand blue
+  doc.setFillColor(28, 107, 53); // brand vert
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 54, 'F');
-  doc.setTextColor(251, 191, 36); // brand yellow
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.text('DECO SHOP', 40, 28);
-  doc.setTextColor(255, 255, 255);
+  doc.text('MARCHÉ DE MO\'', 40, 28);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('Inventaire', 40, 44);
+  doc.text('Gestion d\'inventaire', 40, 44);
 
   doc.setTextColor(120, 120, 120);
   doc.setFontSize(9);
@@ -50,13 +49,13 @@ export function downloadPDF(articles) {
 
   const rows = articles.map((a) => [
     a.numero_article || '',
-    a.categorie || '',
+    a.rayon || '',
     a.marque || '',
-    a.couleur || '',
+    a.dlc || '',
     a.code_barres || '',
-    a.taille || '',
+    a.format || '',
+    a.magasin || '',
     fmt(Number(a.prix_vente)),
-    String(a.quantite_initiale ?? ''),
     String(a.quantite ?? ''),
     STATUT_LABELS[a.statut] || '',
   ]);
@@ -67,22 +66,21 @@ export function downloadPDF(articles) {
     body: rows,
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
-    headStyles: { fillColor: [30, 58, 138], textColor: [255, 255, 255], fontStyle: 'bold' },
+    headStyles: { fillColor: [28, 107, 53], textColor: [255, 255, 255], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { cellWidth: 55, fontStyle: 'bold' },
       1: { cellWidth: 65 },
-      5: { cellWidth: 70 },
-      6: { halign: 'right', cellWidth: 60, fontStyle: 'bold' },
-      7: { halign: 'right', cellWidth: 50 },
-      8: { halign: 'right', cellWidth: 50 },
+      4: { cellWidth: 70 },
+      7: { halign: 'right', cellWidth: 60, fontStyle: 'bold' },
+      8: { halign: 'right', cellWidth: 40 },
       9: { cellWidth: 70, halign: 'center' },
     },
     didParseCell: (data) => {
       if (data.section === 'body' && data.column.index === 9) {
         const s = articles[data.row.index]?.statut;
         if (s === 'rupture') {
-          data.cell.styles.textColor = [185, 28, 28];
+          data.cell.styles.textColor = [139, 25, 25]; // Rouge
           data.cell.styles.fillColor = [254, 226, 226];
           data.cell.styles.fontStyle = 'bold';
         } else if (s === 'stock_faible') {
@@ -101,7 +99,7 @@ export function downloadPDF(articles) {
       doc.setFontSize(8);
       doc.setTextColor(150);
       doc.text(
-        `DECO SHOP · Inventaire · Page ${page}/${pageCount}`,
+        `Marché de Mo' · Inventaire · Page ${page}/${pageCount}`,
         doc.internal.pageSize.getWidth() / 2,
         doc.internal.pageSize.getHeight() - 16,
         { align: 'center' }
@@ -111,5 +109,5 @@ export function downloadPDF(articles) {
   });
 
   const ts2 = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
-  doc.save(`inventaire-decoshop-${ts2}.pdf`);
+  doc.save(`inventaire-marchedemo-${ts2}.pdf`);
 }

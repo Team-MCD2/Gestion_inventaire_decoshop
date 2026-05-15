@@ -1,20 +1,20 @@
 ---
 import Layout from '../layouts/Layout.astro';
 ---
-<Layout title="DECO SHOP — Accueil">
+<Layout title="Marché de Mo' — Accueil">
   <main class="max-w-6xl mx-auto p-4 md:p-8 lg:p-12">
 
     <!-- Hero -->
     <section class="text-center mb-10 md:mb-14">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold ring-1 ring-indigo-200 mb-4">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-vert-50 text-vert-700 text-xs font-semibold ring-1 ring-vert-200 mb-4">
         <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
         Plateforme d'inventaire intelligent
       </div>
       <h1 class="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
-        Bienvenue sur <span class="bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">DECO SHOP</span>
+        Bienvenue sur <span class="bg-gradient-to-r from-vert to-emerald-600 bg-clip-text text-transparent">Marché de Mo'</span>
       </h1>
       <p class="mt-4 text-base md:text-lg text-slate-600 max-w-2xl mx-auto">
-        Suivez votre stock, analysez vos performances et retrouvez n'importe quel article en un scan.
+        Suivez votre stock en temps réel, gérez les DLC et optimisez vos rayons en toute simplicité.
       </p>
     </section>
 
@@ -23,15 +23,15 @@ import Layout from '../layouts/Layout.astro';
 
       <!-- Carte 1 — Statistiques -->
       <a href="/statistiques"
-        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 text-white p-6 md:p-7 shadow-lg ring-1 ring-violet-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
+        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-vert to-vert-800 text-white p-6 md:p-7 shadow-lg ring-1 ring-vert-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
         <div class="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl"></div>
         <div class="relative">
           <div class="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25 mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
           </div>
-          <h2 class="text-xl md:text-2xl font-extrabold">Voir les statistiques</h2>
+          <h2 class="text-xl md:text-2xl font-extrabold">Tableau de bord</h2>
           <p class="text-sm text-white/85 mt-2 leading-relaxed">
-            Valeur du stock, articles en rupture, top par valeur, répartition par catégorie. Bientôt : top ventes Shopify.
+            Valeur du stock, articles en rupture, top produits et répartition par rayon.
           </p>
           <div class="mt-5 inline-flex items-center gap-1 text-sm font-semibold opacity-90 group-hover:gap-2 transition-all">
             Ouvrir le dashboard
@@ -42,15 +42,15 @@ import Layout from '../layouts/Layout.astro';
 
       <!-- Carte 2 — Inventaire -->
       <a href="/inventaire"
-        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-600 text-white p-6 md:p-7 shadow-lg ring-1 ring-indigo-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
+        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 md:p-7 shadow-lg ring-1 ring-emerald-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
         <div class="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl"></div>
         <div class="relative">
           <div class="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25 mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           </div>
-          <h2 class="text-xl md:text-2xl font-extrabold">Gérer l'inventaire</h2>
+          <h2 class="text-xl md:text-2xl font-extrabold">Gestion Stock</h2>
           <p class="text-sm text-white/85 mt-2 leading-relaxed">
-            Ajouter un article (caméra IA, scan code-barres, saisie), consulter, modifier, exporter en CSV / PDF.
+            Consulter, modifier, exporter en CSV / PDF et gérer les réapprovisionnements.
           </p>
           <div class="mt-5 inline-flex items-center gap-1 text-sm font-semibold opacity-90 group-hover:gap-2 transition-all">
             Voir l'inventaire
@@ -61,15 +61,15 @@ import Layout from '../layouts/Layout.astro';
 
       <!-- Carte 3 — Scan -->
       <a href="/scan"
-        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 text-white p-6 md:p-7 shadow-lg ring-1 ring-amber-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
+        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-vert-600 to-emerald-700 text-white p-6 md:p-7 shadow-lg ring-1 ring-vert-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
         <div class="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl"></div>
         <div class="relative">
           <div class="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25 mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3"/><path d="M14 20h3"/><path d="M20 20v1"/></svg>
           </div>
-          <h2 class="text-xl md:text-2xl font-extrabold">Scanner un produit</h2>
+          <h2 class="text-xl md:text-2xl font-extrabold">Scan Produit</h2>
           <p class="text-sm text-white/90 mt-2 leading-relaxed">
-            Scannez le QR ou code-barres : on retrouve directement l'article dans la base et vous pouvez l'éditer.
+            Scannez un code-barres pour accéder instantanément à la fiche produit.
           </p>
           <div class="mt-5 inline-flex items-center gap-1 text-sm font-semibold opacity-95 group-hover:gap-2 transition-all">
             Lancer un scan
@@ -80,18 +80,18 @@ import Layout from '../layouts/Layout.astro';
 
       <!-- Carte 4 — Générer codes-barres -->
       <a href="/codes-barres"
-        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-fuchsia-600 via-pink-600 to-rose-600 text-white p-6 md:p-7 shadow-lg ring-1 ring-fuchsia-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
+        class="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 to-vert-900 text-white p-6 md:p-7 shadow-lg ring-1 ring-emerald-500/30 hover:shadow-2xl hover:-translate-y-1 transition">
         <div class="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl"></div>
         <div class="relative">
           <div class="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25 mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M7 5v14"/><path d="M11 5v14"/><path d="M15 5v14"/><path d="M19 5v14"/></svg>
           </div>
-          <h2 class="text-xl md:text-2xl font-extrabold">Générer codes-barres</h2>
+          <h2 class="text-xl md:text-2xl font-extrabold">Codes-barres</h2>
           <p class="text-sm text-white/90 mt-2 leading-relaxed">
-            Détecte les articles sans code-barres et génère des EAN-13 conformes <strong>GS1 France</strong>, prêts à imprimer.
+            Générez et imprimez des étiquettes EAN-13 conformes pour vos produits.
           </p>
           <div class="mt-5 inline-flex items-center gap-1 text-sm font-semibold opacity-95 group-hover:gap-2 transition-all">
-            Lancer la génération
+            Générer
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </div>
         </div>
@@ -104,7 +104,7 @@ import Layout from '../layouts/Layout.astro';
       <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
         <div class="flex items-center justify-between">
           <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total articles</div>
-          <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-indigo-500 animate-spin"></div>
+          <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-vert animate-spin"></div>
         </div>
         <div class="qs-skel mt-2 h-8 md:h-9 w-20 rounded-lg bg-slate-200 animate-pulse"></div>
         <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-slate-900 tabular-nums hidden" id="qs-total">—</div>
@@ -120,23 +120,23 @@ import Layout from '../layouts/Layout.astro';
       <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
         <div class="flex items-center justify-between">
           <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Stock faible</div>
-          <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-amber-500 animate-spin"></div>
-        </div>
-        <div class="qs-skel mt-2 h-8 md:h-9 w-16 rounded-lg bg-slate-200 animate-pulse"></div>
-        <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-amber-600 tabular-nums hidden" id="qs-low">—</div>
-      </div>
-      <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
-        <div class="flex items-center justify-between">
-          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">En rupture</div>
           <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-red-500 animate-spin"></div>
         </div>
         <div class="qs-skel mt-2 h-8 md:h-9 w-16 rounded-lg bg-slate-200 animate-pulse"></div>
-        <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-red-600 tabular-nums hidden" id="qs-out">—</div>
+        <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-red-600 tabular-nums hidden" id="qs-low">—</div>
+      </div>
+      <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">DLC Proche</div>
+          <div class="qs-spinner h-3.5 w-3.5 rounded-full border-[2px] border-slate-200 border-t-red-700 animate-spin"></div>
+        </div>
+        <div class="qs-skel mt-2 h-8 md:h-9 w-16 rounded-lg bg-slate-200 animate-pulse"></div>
+        <div class="qs-val mt-1 text-2xl md:text-3xl font-extrabold text-red-700 tabular-nums hidden" id="qs-out">—</div>
       </div>
     </section>
 
     <footer class="pt-10 mt-10 border-t border-slate-200 text-center text-xs text-slate-400">
-      DECO SHOP · Inventaire intelligent · Supabase · IA Gemini
+      Marché de Mo' · Inventaire intelligent · Supabase · IA Gemini
     </footer>
   </main>
 
@@ -164,7 +164,7 @@ import Layout from '../layouts/Layout.astro';
         document.querySelectorAll('#quick-stats .qs-spinner').forEach((s) => s.remove());
         document.querySelectorAll('#quick-stats .qs-val').forEach((v) => {
           v.classList.remove('hidden');
-          v.classList.remove('text-slate-900', 'text-amber-600', 'text-red-600');
+          v.classList.remove('text-slate-900', 'text-amber-600', 'text-red-600', 'text-red-700');
           v.classList.add('text-slate-300');
           v.textContent = '—';
         });
@@ -173,7 +173,7 @@ import Layout from '../layouts/Layout.astro';
           const banner = document.createElement('div');
           banner.id = 'qs-error';
           banner.className = 'col-span-2 md:col-span-4 -mt-1 text-center text-xs text-slate-500';
-          banner.innerHTML = `${msg} · <button id="qs-retry" class="underline font-semibold text-indigo-600 hover:text-indigo-700">Réessayer</button>`;
+          banner.innerHTML = `${msg} · <button id="qs-retry" class="underline font-semibold text-vert hover:text-vert-800">Réessayer</button>`;
           host.appendChild(banner);
           document.getElementById('qs-retry').addEventListener('click', () => window.location.reload());
         }

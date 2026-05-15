@@ -1,15 +1,18 @@
-// CSV export — alignement schema MCD (cf. mcd_mld.md §2)
+// CSV export — alignement schema MCD
 const HEADERS = [
   { key: 'numero_article',     label: 'Numero article' },
-  { key: 'categorie',          label: 'Categorie' },
+  { key: 'nom_produit',        label: 'Nom produit' },
+  { key: 'rayon',              label: 'Rayon' },
   { key: 'marque',             label: 'Marque' },
-  { key: 'couleur',            label: 'Couleur' },
+  { key: 'dlc',                label: 'DLC' },
+  { key: 'format',             label: 'Format' },
+  { key: 'magasin',            label: 'Magasin' },
   { key: 'description',        label: 'Description' },
   { key: 'prix_vente',         label: 'Prix vente' },
   { key: 'code_barres',        label: 'Code-barres' },
-  { key: 'taille',             label: 'Taille' },
   { key: 'quantite_initiale',  label: 'Quantite initiale' },
   { key: 'quantite',           label: 'Quantite' },
+  { key: 'seuil',              label: 'Seuil' },
   { key: 'statut',             label: 'Statut' },
 ];
 
@@ -52,7 +55,7 @@ export function downloadCSV(articles, { filename = null } = {}) {
   const a = document.createElement('a');
   const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
   a.href = url;
-  a.download = filename || `inventaire-decoshop-${ts}.csv`;
+  a.download = filename || `inventaire-marchedemo-${ts}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

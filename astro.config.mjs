@@ -4,8 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 import vercel from '@astrojs/vercel';
 
 export default defineConfig({
-  site: 'https://decoshop-inventaire.local',
+  site: 'https://inventaire-marchedemo.local',
   output: 'server',
+  server: { port: 8888 },
   adapter: vercel({
     // Web analytics off by default ; turn on if you set up Vercel Analytics
     webAnalytics: { enabled: false },
